@@ -5,7 +5,7 @@ from queue import PriorityQueue
 WIDTH = 800
 ROWS = 50
 WIN = pygame.display.set_mode((WIDTH, WIDTH))
-pygame.display.set_caption("A* Path Finding Algorithm")
+pygame.display.set_caption("Theta* Path Finding Algorithm")
 
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
@@ -193,7 +193,7 @@ def algorithm(draw, grid, start, end, win):
                 pygame.display.update()
                 return True
         
-        # draw()
+        draw()
         if current != start:
             current.make_closed()
     
@@ -226,9 +226,12 @@ def LineOfSight(p1, p2, gird):
                     return False
                 y1 = y1 + sy
                 f = f - dx
-            if dy == 0 and gird[x1 + ((sx - 1) // 2)][y1].is_barrier() and gird[x1 + ((sx - 1) // 2)][y1 + 1].is_barrier():
-                return False
+            
             if f != 0 and gird[x1 + ((sx - 1) // 2)][y1 + ((sy - 1) // 2)].is_barrier():
+                return False
+            
+            if (dy == 0 and gird[x1 + ((sx - 1) // 2)][y1].is_barrier()) or (dy ==0 and gird[x1 + ((sx - 1) // 2)][y1 + 1].is_barrier()) or \
+                (dy == 0 and gird[x1 + ((sx - 1) // 2)][y1].is_barrier()) or (dy ==0 and gird[x1 + ((sx - 1) // 2)][y1 - 1].is_barrier())  :
                 return False
             
             x1 = x1 + sx
@@ -241,10 +244,11 @@ def LineOfSight(p1, p2, gird):
                 x1 = x1 + sx
                 f = f - dy
 
-            if dx == 0 and gird[x1][y1 + ((sy - 1) // 2)].is_barrier() and gird[x1 + 1][y1 + ((sy - 1) // 2)].is_barrier():
-                return False
-
             if f != 0 and gird[x1 + ((sx - 1) // 2)][y1 + ((sy - 1) // 2)].is_barrier():
+                return False
+            
+            if (dx == 0 and gird[x1][y1 + ((sy - 1) // 2)].is_barrier()) or (dx == 0 and gird[x1 + 1][y1 + ((sy - 1) // 2)].is_barrier()) or \
+               (dx == 0 and gird[x1][y1 + ((sy - 1) // 2)].is_barrier()) or (dx == 0 and gird[x1 - 1][y1 + ((sy - 1) // 2)].is_barrier()):
                 return False
            
             y1 = y1 + sy
