@@ -17,6 +17,7 @@ PURPLE = (128, 0, 128)
 ORANGE = (255, 165, 0)
 GREY = (128, 128, 128)
 TURQUOISE = (64, 224, 208)
+path = []
 
 
 class Spot:
@@ -61,7 +62,7 @@ class Spot:
         self.color = ORANGE
 
     def make_closed(self):
-        self.color = RED
+        self.color = WHITE
 
     def make_open(self):
         self.color = GREEN
@@ -118,10 +119,92 @@ class Spot:
         return False
 
 
+class Robot:
+    def __init__(self, startPos, robotImg, width):
+
+        self.x, self.y = startPos
+        self.theta = 0
+        self.width = width
+        self.vr = 30
+        self.vl = 30
+        self.u = 20
+        self.W = 0
+        self.a = 15
+        self.trail_set = []
+        self.dt = 0
+        self.pathRb = []
+        self.img = pygame.image.load(robotImg)
+        self.img = pygame.transform.scale(self.img, (20, 20))
+        self.rotated = self.img
+        self.rect = self.rotated.get_rect(center=(self.x, self.y))
+
+    def move(self, event=None):
+        # self.x += (self.u * math.cos(self.theta) - self.a *
+        #            math.sin(self.theta) * self.W)*self.dt
+        # self.y += (self.u * math.sin(self.theta) + self.a *
+        #            math.cos(self.theta) * self.W)*self.dt
+        # self.theta += self.W*self.dt
+
+        self.x += ((self.vl + self.vr)/2)*math.cos(self.theta)*self.dt
+        self.y += ((self.vl + self.vr)/2)*math.sin(self.theta)*self.dt
+        self.theta += (self.vr - self.vl)/self.width*self.dt
+
+        # self.x += (self.width*(self.vr + self.vl)*(math.sin(self.theta + self.theta*self.dt) -  math.sin(self.theta) ))/ (2*(self.vr -self.vl))
+        # self.y += (self.width*(self.vr + self.vl)*(- math.cos(self.theta + self.theta*self.dt) +  math.cos(self.theta) ))/ (2*(self.vr -self.vl))
+        # self.theta += self.theta*self.dt
+
+        self.rotated = pygame.transform.rotozoom(
+            self.img, math.degrees(-self.theta), 1)
+        self.rect = self.rotated.get_rect(center=(self.x, self.y))
+
+        self.following()
+
+    def following(self):
+        target = self.pathRb[0]
+        delta_x = target[0] - self.x
+        delta_y = target[1] - self.y
+
+        self.u = delta_x * math.cos(self.theta) + \
+            delta_y * math.sin(self.theta)
+        self.W = (-1/self.a) * math.sin(self.theta) * delta_x + \
+            (1/self.a) * math.cos(self.theta)*delta_y
+
+        self.vr = (self.u + self.W*self.width)/2
+        self.vl = (self.u - self.W * self.width)/2
+        if self.dist((self.x, self.y), target) < 10 and len(self.pathRb) > 1:
+            self.pathRb.pop(0)
+
+    def dist(self, point1, point2):
+        (x1, y1) = point1
+        (x2, y2) = point2
+        x1 = float(x1)
+        x2 = float(x2)
+        y1 = float(y1)
+        y2 = float(y2)
+
+        px = (x1 - x2) ** 2
+        py = (y1 - y2) ** 2
+        distance = (px + py) ** 0.5
+        return distance
+
+    def draw(self, map):
+        map.blit(self.rotated, self.rect)
+
+    def trail(self, pos, map, color):
+        for i in range(0, len(self.trail_set) - 1):
+            pygame.draw.line(map, color, (self.trail_set[i][0], self.trail_set[i][1]),
+                             (self.trail_set[i+1][0], self.trail_set[i+1][1]), 5)
+        self.trail_set.append(pos)
+
+
 def h(p1, p2):
     x1, y1 = p1
     x2, y2 = p2
     return abs(x1 - x2) + abs(y1 - y2)
+    # if abs(x1 - x2) >= abs(y1 - y2):
+    #     return abs(x1 - x2)
+    # if abs(x1 - x2) < abs(y1 - y2):
+    #     return abs(y1 - y2)
 
 
 def reconstruct_path(came_from, current, draw):  # đổi màu các ô đi qua
@@ -138,7 +221,7 @@ def reconstruct_line_path(came_from, current, win):  # vẽ đường đi
         pygame.draw.line(win, BLACK, current.get_real_pos(), x)
 
 
-def algorithm(draw, grid, start, end, win):
+def algorithm(draw, grid, start, end, win):  # theta Star
     count = 0
     open_set = PriorityQueue()
     open_set.put((0, count, start))
@@ -155,7 +238,9 @@ def algorithm(draw, grid, start, end, win):
             if event.type == pygame.QUIT:
                 pygame.quit()
 
-        current = open_set.get()[2]
+        temp = open_set.get()
+        x = temp[1]
+        current = temp[2]
         open_set_hash.remove(current)
 
         for neighbor in current.neighbors:
@@ -188,6 +273,11 @@ def algorithm(draw, grid, start, end, win):
                     neighbor.make_open()
 
             if current == end:
+                global path
+                while current in came_from:
+                    path.append(current.get_real_pos())
+                    current = came_from[current]
+                path.append(start.get_real_pos())
                 reconstruct_path(came_from, end, draw)
                 end.make_end()
                 draw()
@@ -231,8 +321,8 @@ def LineOfSight(p1, p2, gird):
             if f != 0 and gird[x1 + ((sx - 1) // 2)][y1 + ((sy - 1) // 2)].is_barrier():
                 return False
 
-            if (dy == 0 and gird[x1 + ((sx - 1) // 2)][y1].is_barrier()) or (dy == 0 and gird[x1 + ((sx - 1) // 2)][y1 + 1].is_barrier()) or \
-                    (dy == 0 and gird[x1 + ((sx - 1) // 2)][y1].is_barrier()) or (dy == 0 and gird[x1 + ((sx - 1) // 2)][y1 - 1].is_barrier()):
+            if (dy == 0 and gird[x1 + ((sx - 1) // 2)][y1].is_barrier()) or (dy == 0 and gird[x1 + ((sx - 1) // 2)][y1 + 1].is_barrier()):
+
                 return False
 
             x1 = x1 + sx
@@ -248,8 +338,7 @@ def LineOfSight(p1, p2, gird):
             if f != 0 and gird[x1 + ((sx - 1) // 2)][y1 + ((sy - 1) // 2)].is_barrier():
                 return False
 
-            if (dx == 0 and gird[x1][y1 + ((sy - 1) // 2)].is_barrier()) or (dx == 0 and gird[x1 + 1][y1 + ((sy - 1) // 2)].is_barrier()) or \
-               (dx == 0 and gird[x1][y1 + ((sy - 1) // 2)].is_barrier()) or (dx == 0 and gird[x1 - 1][y1 + ((sy - 1) // 2)].is_barrier()):
+            if (dx == 0 and gird[x1][y1 + ((sy - 1) // 2)].is_barrier()) or (dx == 0 and gird[x1 + 1][y1 + ((sy - 1) // 2)].is_barrier()):
                 return False
 
             y1 = y1 + sy
@@ -311,6 +400,16 @@ def draw(win, grid, rows, width):
     pygame.display.update()
 
 
+def drawNotUpDate(win, grid, rows, width):
+    win.fill(WHITE)
+
+    for row in grid:
+        for spot in row:
+            spot.draw(win)
+
+    draw_grid(win, rows, width)
+
+
 def get_clicked_pos(pos, rows, width):
     gap = width // rows
     x, y = pos
@@ -322,18 +421,20 @@ def get_clicked_pos(pos, rows, width):
 
 
 def main(win, width):
+    pygame.init()
     grid = make_grid(ROWS, width)
-
     start = None
     end = None
     MARK = False
     run = True
+
     while run:
         if MARK == False:
             draw(win, grid, ROWS, width)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
+
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_1:
                     MARK = False
@@ -404,6 +505,39 @@ def main(win, width):
                     start = None
                     end = None
                     grid = make_grid(ROWS, width)
+        if MARK:
+            robot = Robot(start.get_real_pos(
+            ), "C:\\Users\\admin\\LearningIT\\20221\\Project1\\kinematic\\Robot.png", 20)
+
+            path.reverse()
+            robot.pathRb = path
+
+            lasttime = pygame.time.get_ticks()
+            while run:
+
+                reset = False
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        run = False
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_SPACE:
+                            reset = True
+                            robot.pathRb.clear()
+
+                if reset:
+                    MARK = False
+                    break
+                # timesleep += (pygame.time.get_ticks() - lasttime) / 1000
+                # if timesleep > 0.1:
+                drawNotUpDate(win, grid, ROWS, width)
+                # timesleep = 0
+                robot.dt = (pygame.time.get_ticks() - lasttime) / 1000
+                lasttime = pygame.time.get_ticks()
+                if h((robot.x, robot.y), end.get_real_pos()) > 5:
+                    robot.move(event=event)
+                robot.draw(win)
+                robot.trail((robot.x, robot.y), win, RED)
+                pygame.display.update()
 
     pygame.quit()
 
