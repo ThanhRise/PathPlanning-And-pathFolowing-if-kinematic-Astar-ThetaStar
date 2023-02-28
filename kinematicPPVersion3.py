@@ -207,13 +207,14 @@ class Robot:
         self.x, self.y = startPos
         self.theta = 0
         self.width = width
-        self.vr = 15  # right velocity
-        self.vl = 15  # left velocity
+        self.vr = 14  # right velocity
+        self.vl = 14  # left velocity
         self.u = (self.vl + self.vr)/2  # linear velocity
         self.W = 0  # angular velocity
         self.a = 15  # width of robot
         self.trail_set = []
         self.dt = 0  # time step
+        self.target = 0
         self.pathRb = []
         self.angle = []
         one_degree = math.pi / 180
@@ -225,7 +226,6 @@ class Robot:
         self.img = pygame.transform.scale(self.img, (16, 16))
         self.rotated = self.img
         self.rect = self.rotated.get_rect(center=(self.x, self.y))
-        
 
     def move_to(self, angle, win, grid, end):
         time_move = pygame.time.get_ticks()
@@ -234,9 +234,9 @@ class Robot:
 
         self.vr = self.u + (self.W * self.width)/2
         self.vl = self.u - (self.W * self.width)/2
-        # print("vr: ", self.vr, "vl: ", self.vl, "W: ", self.W, "u: ", self.u)
+        print("vr: ", self.vr, "vl: ", self.vl, "W: ", self.W, "u: ", self.u)
         last_time = pygame.time.get_ticks()
-        while pygame.time.get_ticks() - time_move < 1500 and self.dist((self.x, self.y), end.get_real_pos()) > 20:
+        while pygame.time.get_ticks() - time_move < 1500 and self.dist((self.x, self.y), end.get_real_pos()) > 15:
             drawNotUpDate(win, grid, ROWS, WIDTH)
             time_step = (pygame.time.get_ticks() - last_time) / 1000
             self.dt = time_step
@@ -264,28 +264,134 @@ class Robot:
         gap = WIDTH // ROWS
         dt = 1.5
         theta = self.theta + angle
-        x = self.x + ((self.vl + self.vr)/2)*math.cos(theta)*dt
-        y = self.y + ((self.vl + self.vr)/2)*math.sin(theta)*dt
-        row, col = int(x / gap), int(y / gap)
-        row2, col2 = int((x + 8) / gap), int(y / gap)
-        row3, col3 = int(x / gap), int((y + 8) / gap)
-        row4, col4 = int((x + 6) / gap), int((y + 6) / gap)
-        row5, col5 = int((x - 6) / gap), int((y - 6) / gap)
-        row6, col6 = int((x - 8) / gap), int(y / gap)
-        row7, col7 = int(x / gap), int((y - 8) / gap)
-        row8, col8 = int((x + 6) / gap), int((y - 6) / gap)
-        row9, col9 = int((x - 6) / gap), int((y + 6) / gap)
+        # x = self.x + ((self.vl + self.vr)/2)*math.cos(theta)*dt
+        # y = self.y + ((self.vl + self.vr)/2)*math.sin(theta)*dt
+        x = self.x
+        y = self.y
+        dist_cross = 7
+        dist_line = 10
 
+        tempXY = []
+        for i in range(10):
+            tempXY.append((x, y))
+            x += ((self.vl + self.vr)/2)*math.cos(theta)*(dt*0.1)
+            y += ((self.vl + self.vr)/2)*math.sin(theta)*(dt*0.1)
+
+        for i in range(len(tempXY)):
+            x, y = tempXY[i]
+            row, col = int(x / gap), int(y / gap)
+            row2, col2 = int((x + dist_line * i * 0.1) / gap), int(y / gap)
+            row3, col3 = int(x / gap), int((y + dist_line * i * 0.1) / gap)
+            row4, col4 = int((x + i * dist_cross * 0.1) /
+                             gap), int((y + i * dist_cross * 0.1) / gap)
+            row5, col5 = int((x - i * dist_cross * 0.1) /
+                             gap), int((y - i * dist_cross * 0.1) / gap)
+            row6, col6 = int((x - dist_line * i * 0.1) / gap), int(y / gap)
+            row7, col7 = int(x / gap), int((y - dist_line * i * 0.1) / gap)
+            row8, col8 = int((x + i * dist_cross * 0.1) /
+                             gap), int((y - i * dist_cross * 0.1) / gap)
+            row9, col9 = int((x - i * dist_cross * 0.1) /
+                             gap), int((y + i * dist_cross * 0.1) / gap)
+            spot = grid[row][col]
+            spot2 = grid[row2][col2]
+            spot3 = grid[row3][col3]
+            spot4 = grid[row4][col4]
+            spot5 = grid[row5][col5]
+            spot6 = grid[row6][col6]
+            spot7 = grid[row7][col7]
+            spot8 = grid[row8][col8]
+            spot9 = grid[row9][col9]
+            if spot.is_barrier() or spot2.is_barrier() or spot3.is_barrier() or spot4.is_barrier() or spot5.is_barrier() or spot6.is_barrier() or spot7.is_barrier() or spot8.is_barrier() or spot9.is_barrier():
+                return None, None, None
+
+        row, col = int(x / gap), int(y / gap)
+        row2, col2 = int((x + 12) / gap), int(y / gap)
+        row3, col3 = int(x / gap), int((y + 12) / gap)
+        row4, col4 = int((x + 11.3) / gap), int((y + 11.3) / gap)
+        row5, col5 = int((x - 11.3) / gap), int((y - 11.3) / gap)
+        row6, col6 = int((x - 12) / gap), int(y / gap)
+        row7, col7 = int(x / gap), int((y - 12) / gap)
+        row8, col8 = int((x + 11.3) / gap), int((y - 11.3) / gap)
+        row9, col9 = int((x - 11.3) / gap), int((y + 11.3) / gap)
+
+        row, col = int(x / gap), int(y / gap)
         spot = grid[row][col]
-        # pygame.draw.line(win, RED, (self.x, self.y), (x, y), 1)
-        # pygame.display.update()
+        pygame.draw.line(win, RED, (self.x, self.y), (x, y), 1)
+        pygame.display.update()
+
         if spot.is_barrier() or grid[row2][col2].is_barrier() or grid[row3][col3].is_barrier() or grid[row4][col4].is_barrier() or grid[row5][col5].is_barrier() or grid[row6][col6].is_barrier() or grid[row7][col7].is_barrier() or grid[row8][col8].is_barrier() or grid[row9][col9].is_barrier():
             return None, None, None
         return spot, x, y
 
+    # def find_spot_with_angle(self, grid, angle, win):
+    #     gap = WIDTH // ROWS
+    #     dt = 0.15
+
+    #     # x = self.x + ((self.vl + self.vr)/2)*math.cos(theta)*dt
+    #     # y = self.y + ((self.vl + self.vr)/2)*math.sin(theta)*dt
+    #     x = self.x
+    #     y = self.y
+    #     theta = self.theta
+    #     vr = self.u + (angle * self.width)/2
+    #     vl = self.u - (angle * self.width)/2
+    #     for i in range(10):
+    #         x += ((vl + vr)/2)*math.cos(theta)*dt
+    #         y += ((vl + vr)/2)*math.sin(theta)*dt
+    #         theta += (vr - vl)/self.width*dt
+    #         row, col = int(x / gap), int(y / gap)
+    #         row2, col2 = int((x + 6) / gap), int(y / gap)
+    #         row3, col3 = int(x / gap), int((y + 6) / gap)
+    #         row4, col4 = int((x + 4.2) / gap), int((y + 4.2) / gap)
+    #         row5, col5 = int((x - 4.2) / gap), int((y - 4.2) / gap)
+    #         row6, col6 = int((x - 6) / gap), int(y / gap)
+    #         row7, col7 = int(x / gap), int((y - 6) / gap)
+    #         row8, col8 = int((x + 4.2) / gap), int((y - 4.2) / gap)
+    #         row9, col9 = int((x - 4.2) / gap), int((y + 4.2) / gap)
+
+    #         if row < ROWS and col < ROWS and row >= 0 and col >= 0:
+    #             spot = grid[row][col]
+    #             spot2 = grid[row2][col2]
+    #             spot3 = grid[row3][col3]
+    #             spot4 = grid[row4][col4]
+    #             spot5 = grid[row5][col5]
+    #             spot6 = grid[row6][col6]
+    #             spot7 = grid[row7][col7]
+    #             spot8 = grid[row8][col8]
+    #             spot9 = grid[row9][col9]
+    #             if spot.is_barrier() or spot2.is_barrier() or spot3.is_barrier() or spot4.is_barrier() or spot5.is_barrier() or spot6.is_barrier() or spot7.is_barrier() or spot8.is_barrier() or spot9.is_barrier():
+    #                 return None, None, None
+    #     # row, col = int(x / gap), int(y / gap)
+    #     # row2, col2 = int((x + 12) / gap), int(y / gap)
+    #     # row3, col3 = int(x / gap), int((y + 12) / gap)
+    #     # row4, col4 = int((x + 11.3) / gap), int((y + 11.3) / gap)
+    #     # row5, col5 = int((x - 11.3) / gap), int((y - 11.3) / gap)
+    #     # row6, col6 = int((x - 12) / gap), int(y / gap)
+    #     # row7, col7 = int(x / gap), int((y - 12) / gap)
+    #     # row8, col8 = int((x + 11.3) / gap), int((y - 11.3) / gap)
+    #     # row9, col9 = int((x - 11.3) / gap), int((y + 11.3) / gap)
+
+    #     print("self.x: ", self.x, "self.y: ", self.y, "x: ", x, "y: ", y)
+
+    #     # draw line
+    #     pygame.draw.line(win, RED, (self.x, self.y), (x, y), 1)
+    #     pygame.display.update()
+
+    #     row, col = int(x / gap), int(y / gap)
+    #     spot = grid[row][col]
+    #     return spot, x, y
+
+    # speed adjustment
+    def adjust_speed(self, number_tager):
+        if number_tager > self.target or number_tager == 31:
+            self.u += 0.5
+        elif number_tager < self.target / 2:
+            self.u -= 1
+        elif number_tager < self.target:
+            self.u -= 0.5
+        self.target = number_tager
+
     def find_next_spot(self, grid, end, win, distance):
         current = self.x, self.y
-        fixEndPos = end.get_real_pos()[0], end.get_real_pos()[1]
 
         # the next point will be based on velocity, time and angle
         if current != end.get_real_pos():
@@ -295,15 +401,16 @@ class Robot:
                     grid, self.angle[i], win)
                 if spot is not None:
                     neighbors.append((spot, x, y, self.angle[i]))
-            # print(len(neighbors))
+            print(len(neighbors))
             if len(neighbors) > 0:
+                self.adjust_speed(len(neighbors))
                 # find the spot with the smallest distance to the end
                 min_dist_spot = 100000
                 min_dist = 100000
                 min_spot = None
                 for i in range(len(neighbors)):
                     dist = self.dist(
-                        (neighbors[i][1], neighbors[i][2]), fixEndPos)
+                        (neighbors[i][1], neighbors[i][2]), end.get_real_pos())
                     if distance[neighbors[i][0]] < min_dist_spot and dist < min_dist:
                         min_dist_spot = distance[neighbors[i][0]]
                         min_spot = neighbors[i][0]
@@ -355,6 +462,7 @@ class Robot:
             pygame.display.update()
         self.vr = vr_prev
         self.vl = vl_prev
+        self.target = 0
 
     def dist(self, point1, point2):
         (x1, y1) = point1
@@ -416,40 +524,32 @@ def BFS(grid: list[list[Spot]], end: Spot):
 # robot move to goal with A* algorithm
 
 
-def find_move_path(robot: Robot, draw, grid, start, ListEnd: list[Spot], win):
+def find_move_path(robot: Robot, draw, grid, start, end: Spot, win):
 
-    while len(ListEnd) > 0:
-        end = ListEnd.pop(len(ListEnd) - 1)
-        print("end: ", end.get_pos())
-        distance = BFS(grid, end)
-        fixEndPos = end.get_real_pos()[0], end.get_real_pos()[1]
-        # lasttime = pygame.time.get_ticks()
-        while robot.dist((robot.x, robot.y), fixEndPos) > 20:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
+    distance = BFS(grid, end)
+    fixEndPos = end.get_real_pos()[0] + 8, end.get_real_pos()[1] + 8
+    # lasttime = pygame.time.get_ticks()
+    while robot.dist((robot.x, robot.y), fixEndPos) > 20:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+        # set_time = pygame.time.get_ticks()
+        next_pos, angle = robot.find_next_spot(grid, end, win, distance)
+        if next_pos:
+            # set_time = (pygame.time.get_ticks() - set_time) / 1000
+            # print("set time 1: ", set_time)
             # set_time = pygame.time.get_ticks()
-            next_pos, angle = robot.find_next_spot(grid, end, win, distance)
-            if next_pos:
-                # set_time = (pygame.time.get_ticks() - set_time) / 1000
-                # print("set time 1: ", set_time)
-                # set_time = pygame.time.get_ticks()
-                robot.move_to(angle, win, grid, end)
-                # set_time = (pygame.time.get_ticks() - set_time) / 1000
-                # print("move time 2: ", set_time)
-            else:
-                robot.move_back(grid, win)
+            robot.move_to(angle, win, grid, end)
+            # set_time = (pygame.time.get_ticks() - set_time) / 1000
+            # print("move time 2: ", set_time)
+        else:
+            robot.move_back(grid, win)
 
     return True
 
 
 def load_map(file_name, grid: list[list[Spot]], name_map):
     # open file
-    end = []
-    end1 = None
-    end2 = None
-    end3 = None
-    endFinal = None
     file_name = open(file_name, "r")
     for line in file_name:
         # with line start with "map1" is map 1
@@ -464,25 +564,9 @@ def load_map(file_name, grid: list[list[Spot]], name_map):
                         start = grid[i][int(j/2)]
                         start.make_start()
                     elif line1[j] == "3":
-                        endFinal = grid[i][int(j/2)]
-                        grid[i][int(j/2)].make_end()
-                    elif line1[j] == "4":
-                        end1 = grid[i][int(j/2)]
-                        end1.make_end()
-                    elif line1[j] == "5":
-                        end2 = grid[i][int(j/2)]
-                        end2.make_end()
-                    elif line1[j] == "6":
-                        end3 = grid[i][int(j/2)]
-                        end3.make_end()
-    end.append(endFinal)
-    if end3 is not None:
-        end.append(end3)
-    if end2 is not None:
-        end.append(end2)
-    if end1 is not None:
-        end.append(end1)
-    # close file
+                        end = grid[i][int(j/2)]
+                        end.make_end()
+                    # close file
     file_name.close()
     return grid, start, end
 
@@ -545,8 +629,6 @@ def main(win, width):
     end = None
     MARK = False
     run = True
-    Map = None
-    filename = "map.txt"
 
     while run:
         if MARK == False:
@@ -561,36 +643,31 @@ def main(win, width):
                     start = None
                     end = None
                     grid = make_grid(ROWS, width)
-                    grid, start, end = load_map(filename, grid, "map1")
-                    Map = "map1"
+                    grid, start, end = load_map("map.txt", grid, "map1")
                 if event.key == pygame.K_2:
                     MARK = False
                     start = None
                     end = None
                     grid = make_grid(ROWS, width)
-                    grid, start, end = load_map(filename, grid, "map2")
-                    Map = "map2"
+                    grid, start, end = load_map("map.txt", grid, "map2")
                 if event.key == pygame.K_3:
                     MARK = False
                     start = None
                     end = None
                     grid = make_grid(ROWS, width)
-                    grid, start, end = load_map(filename, grid, "map3")
-                    Map = "map3"
+                    grid, start, end = load_map("map.txt", grid, "map3")
                 if event.key == pygame.K_4:
                     MARK = False
                     start = None
                     end = None
                     grid = make_grid(ROWS, width)
-                    grid, start, end = load_map(filename, grid, "map4")
-                    Map = "map4"
+                    grid, start, end = load_map("map.txt", grid, "map4")
                 if event.key == pygame.K_5:
                     MARK = False
                     start = None
                     end = None
                     grid = make_grid(ROWS, width)
-                    grid, start, end = load_map(filename, grid, "map5")
-                    Map = "map5"
+                    grid, start, end = load_map("map.txt", grid, "map5")
             if pygame.mouse.get_pressed()[0]:  # LEFT
                 pos = pygame.mouse.get_pos()
                 row, col = get_clicked_pos(pos, ROWS, width)
@@ -619,8 +696,6 @@ def main(win, width):
             if event.type == pygame.KEYDOWN:
                 robot = Robot(start.get_real_pos(
                 ), "Robot.png", 16)
-                # if Map == "map5": 
-                #     robot.theta = 3*math.pi/2
                 if event.key == pygame.K_SPACE and start and end:
                     MARK = find_move_path(robot, lambda: draw(win, grid, ROWS, width),
                                           grid, start, end, win)

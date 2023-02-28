@@ -256,6 +256,24 @@ def LineOfSight(p1, p2, gird):
 
     return True
 
+def write_map(file_name, grid, name_map):
+    # open file
+    file_name = open(file_name, "a")
+    # write map
+    file_name.write(name_map + "\n")
+    for i in range(ROWS):
+        for j in range(ROWS):
+            if grid[i][j].is_barrier():
+                file_name.write("1 ")
+            elif grid[i][j].is_start():
+                file_name.write("2 ")
+            elif grid[i][j].is_end():
+                file_name.write("3 ")
+            else:
+                file_name.write("0 ")
+        file_name.write("\n")
+    # close file
+    file_name.close()
 
 def load_map(file_name, grid, name_map):
     # open file
@@ -275,7 +293,7 @@ def load_map(file_name, grid, name_map):
                     elif line1[j] == "3":
                         end = grid[i][int(j/2)]
                         end.make_end()
-                    # close file
+    # close file
     file_name.close()
     return grid, start, end
 
@@ -393,7 +411,7 @@ def main(win, width):
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE and start and end:
                     for row in grid:
-                        for spot in row:
+                        for spot in row:    
                             spot.update_neighbors(grid)
 
                     MARK = algorithm(lambda: draw(win, grid, ROWS, width),

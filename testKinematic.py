@@ -127,7 +127,7 @@ class Robot:
         self.width = width
         self.vr = 30
         self.vl = 30
-        self.u = 20
+        self.u = 30
         self.W = 0
         self.a = 15
         self.trail_set = []
@@ -169,8 +169,8 @@ class Robot:
         self.W = (-1/self.a) * math.sin(self.theta) * delta_x + \
             (1/self.a) * math.cos(self.theta)*delta_y
 
-        self.vr = (self.u + self.W*self.width)/2
-        self.vl = (self.u - self.W * self.width)/2
+        self.vr = self.u + (self.W*self.width)/2
+        self.vl = self.u - (self.W * self.width)/2
         if self.dist((self.x, self.y), target) < 10 and len(self.pathRb) > 1:
             self.pathRb.pop(0)
 

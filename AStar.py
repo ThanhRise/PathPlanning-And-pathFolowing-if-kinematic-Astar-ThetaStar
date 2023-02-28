@@ -3,6 +3,7 @@ import math
 from queue import PriorityQueue
 
 WIDTH = 800
+ROWS = 50
 WIN = pygame.display.set_mode((WIDTH, WIDTH))
 pygame.display.set_caption("A* Path Finding Algorithm")
 
@@ -84,17 +85,17 @@ class Spot:
 		if self.col > 0 and not grid[self.row][self.col - 1].is_barrier(): # LEFT
 			self.neighbors.append(grid[self.row][self.col - 1])
 
-		if self.row < self.total_rows - 1 and self.col < self.total_rows - 1 and not grid[self.row + 1][self.col + 1].is_barrier(): # DOWN
-			self.neighbors.append(grid[self.row + 1][self.col + 1])
+		# if self.row < self.total_rows - 1 and self.col < self.total_rows - 1 and not grid[self.row + 1][self.col + 1].is_barrier(): # DOWN
+		# 	self.neighbors.append(grid[self.row + 1][self.col + 1])
 
-		if self.row > 0 and self.col < self.total_rows - 1 and not grid[self.row - 1][self.col + 1].is_barrier():
-			self.neighbors.append(grid[self.row - 1][self.col + 1])
+		# if self.row > 0 and self.col < self.total_rows - 1 and not grid[self.row - 1][self.col + 1].is_barrier():
+		# 	self.neighbors.append(grid[self.row - 1][self.col + 1])
 
-		if self.row < self.total_rows - 1 and self.col > 0 and not grid[self.row + 1][self.col - 1].is_barrier():
-			self.neighbors.append(grid[self.row + 1][self.col - 1])
+		# if self.row < self.total_rows - 1 and self.col > 0 and not grid[self.row + 1][self.col - 1].is_barrier():
+		# 	self.neighbors.append(grid[self.row + 1][self.col - 1])
 
-		if self.row > 0 and self.col > 0 and not grid[self.row - 1][self.col - 1].is_barrier():
-			self.neighbors.append(grid[self.row - 1][self.col - 1])
+		# if self.row > 0 and self.col > 0 and not grid[self.row - 1][self.col - 1].is_barrier():
+		# 	self.neighbors.append(grid[self.row - 1][self.col - 1])
 			
 
 	def __lt__(self, other):
@@ -105,6 +106,10 @@ def h(p1, p2):
 	x1, y1 = p1
 	x2, y2 = p2
 	return abs(x1 - x2) + abs(y1 - y2)
+	# px = (x1 - x2) ** 2
+	# py = (y1 - y2) ** 2
+	# distance = (px + py) ** 0.5
+	# return distance
 
 
 def reconstruct_path(came_from, current, draw):
@@ -200,6 +205,28 @@ def get_clicked_pos(pos, rows, width):
 
 	return row, col
 
+def load_map(file_name, grid, name_map):
+    # open file
+    file_name = open(file_name, "r")
+    for line in file_name:
+        # with line start with "map1" is map 1
+        if line.startswith(name_map):
+            # read next line
+            for i in range(ROWS):
+                line1 = file_name.readline()
+                for j in range(ROWS*2):
+                    if line1[j] == "1":
+                        grid[i][int(j/2)].make_barrier()
+                    elif line1[j] == "2":
+                        start = grid[i][int(j/2)]
+                        start.make_start()
+                    elif line1[j] == "3":
+                        end = grid[i][int(j/2)]
+                        end.make_end()
+    # close file
+    file_name.close()
+    return grid, start, end
+
 
 def main(win, width):
 	ROWS = 50
@@ -207,15 +234,46 @@ def main(win, width):
 
 	start = None
 	end = None
-
+	MARK = False
 	run = True
 	while run:
-		draw(win, grid, ROWS, width)
+		if MARK == False:
+			draw(win, grid, ROWS, width)
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
 				run = False
-
-			if pygame.mouse.get_pressed()[0]: # LEFT
+			if event.type == pygame.KEYDOWN:
+				if event.key == pygame.K_1:
+					MARK = False
+					start = None
+					end = None
+					grid = make_grid(ROWS, width)
+					grid, start, end = load_map("map.txt", grid, "map1")
+				if event.key == pygame.K_2:
+					MARK = False
+					start = None
+					end = None
+					grid = make_grid(ROWS, width)
+					grid, start, end = load_map("map.txt", grid, "map2")
+				if event.key == pygame.K_3:
+					MARK = False
+					start = None
+					end = None
+					grid = make_grid(ROWS, width)
+					grid, start, end = load_map("map.txt", grid, "map3")
+				if event.key == pygame.K_4:
+					MARK = False
+					start = None
+					end = None
+					grid = make_grid(ROWS, width)
+					grid, start, end = load_map("map.txt", grid, "map4")
+				if event.key == pygame.K_5:
+					MARK = False
+					start = None
+					end = None
+					grid = make_grid(ROWS, width)
+					grid, start, end = load_map("map.txt", grid, "map5")
+			if pygame.mouse.get_pressed()[0]:  # LEFT
 				pos = pygame.mouse.get_pos()
 				row, col = get_clicked_pos(pos, ROWS, width)
 				spot = grid[row][col]
@@ -230,7 +288,7 @@ def main(win, width):
 				elif spot != end and spot != start:
 					spot.make_barrier()
 
-			elif pygame.mouse.get_pressed()[2]: # RIGHT
+			elif pygame.mouse.get_pressed()[2]:  # RIGHT
 				pos = pygame.mouse.get_pos()
 				row, col = get_clicked_pos(pos, ROWS, width)
 				spot = grid[row][col]
@@ -243,15 +301,18 @@ def main(win, width):
 			if event.type == pygame.KEYDOWN:
 				if event.key == pygame.K_SPACE and start and end:
 					for row in grid:
-						for spot in row:
+						for spot in row:    
 							spot.update_neighbors(grid)
 
-					algorithm(lambda: draw(win, grid, ROWS, width), grid, start, end)
+					MARK = algorithm(lambda: draw(win, grid, ROWS, width),
+										grid, start, end)
 
 				if event.key == pygame.K_c:
+					MARK = False
 					start = None
 					end = None
 					grid = make_grid(ROWS, width)
+
 
 	pygame.quit()
 

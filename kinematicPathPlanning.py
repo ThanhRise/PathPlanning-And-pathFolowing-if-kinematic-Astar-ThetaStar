@@ -44,8 +44,8 @@ class Spot:
 
     def get_real_pos(self):
         gap = WIDTH // ROWS
-        x = gap * self.row   # để đường thẳng nằm giữa ô vuông
-        y = gap * self.col
+        x = gap * self.row + 8  # để đường thẳng nằm giữa ô vuông
+        y = gap * self.col + 8
         return x, y
 
     def is_closed(self):
@@ -201,8 +201,8 @@ class Robot:
         self.x, self.y = startPos
         self.theta = 0
         self.width = width
-        self.vr = 30  # right velocity
-        self.vl = 30  # left velocity
+        self.vr = 15  # right velocity
+        self.vl = 15  # left velocity
         self.u = (self.vl + self.vr)/2  # linear velocity
         self.W = 0  # angular velocity
         self.a = 15  # width of robot
@@ -210,7 +210,7 @@ class Robot:
         self.dt = 0  # time step
         self.pathRb = []
         self.img = pygame.image.load(robotImg)
-        self.img = pygame.transform.scale(self.img, (20, 20))
+        self.img = pygame.transform.scale(self.img, (width, width))
         self.rotated = self.img
         self.rect = self.rotated.get_rect(center=(self.x, self.y))
 
@@ -250,8 +250,8 @@ class Robot:
             (1/self.a) * math.cos(self.theta)*delta_y
         # print(self.W)
 
-        self.vr = (self.u + self.W * self.width)/2
-        self.vl = (self.u - self.W * self.width)/2
+        self.vr = self.u + (self.W * self.width)/2
+        self.vl = self.u - (self.W * self.width)/2
         if self.dist((self.x, self.y), target) <= 10:
             self.pathRb.pop(0)
 
@@ -353,14 +353,7 @@ def algorithm(robot, draw, grid, start, end, win, distance):
         x = temp[1]
         current = temp[2]
         # clear the open_set_hash
-        while not open_set.empty():
-            # not_current = open_set.get()[2]
-            # not_current.make_closed()
-            try:
-                open_set.get(False)
-            except KeyError:
-                continue
-            open_set.task_done()
+        
 
         open_set_hash.clear()
 
@@ -373,7 +366,6 @@ def algorithm(robot, draw, grid, start, end, win, distance):
                     pygame.quit()
             drawNotUpDate(win, grid, ROWS, WIDTH)
             robot.dt = (pygame.time.get_ticks() - lasttime) / 1000
-            print(robot.dt)
             time_set += robot.dt
 
             lasttime = pygame.time.get_ticks()
@@ -382,6 +374,10 @@ def algorithm(robot, draw, grid, start, end, win, distance):
             robot.trail((robot.x, robot.y), win, RED)
             pygame.display.update()
 
+        while not open_set.empty():
+            not_current = open_set.get()[2]
+            not_current.make_closed()
+            
         # check if robot touch the goal
         if current == end:
             print(time_set)
@@ -389,6 +385,7 @@ def algorithm(robot, draw, grid, start, end, win, distance):
             return True
         # update neighbor of current
         current.update_neighbors(robot, grid, start, end)
+        print(len(current.neighbors))
 
         for neighbor in current.neighbors:
 
@@ -558,7 +555,8 @@ def main(win, width):
 
             if event.type == pygame.KEYDOWN:
                 robot = Robot(start.get_real_pos(
-                ), "Robot.png", 20)
+                ), "Robot.png", 16)
+                robot.draw(win)
                 if event.key == pygame.K_SPACE and start and end:
                     distance = BFS(grid, end)
                     MARK = algorithm(robot, lambda: draw(win, grid, ROWS, width),
