@@ -1,6 +1,6 @@
 import pygame
 import math
-from queue import PriorityQueue
+# from queue import PriorityQueue
 from sklearn.neighbors import KDTree
 import scipy.interpolate as interpolate
 import numpy as np
@@ -30,6 +30,7 @@ GREY = (128, 128, 128)
 TURQUOISE = (64, 224, 208)
 path = []
 
+
 class DynamicObstacle:
     possible_velocities = ((0, 1), (-1, 0), (1, 0), (0, -1))
 
@@ -42,12 +43,13 @@ class DynamicObstacle:
         grid[self.x][self.y].reset_to_prev_color()
         self.x += self.velocity[0]
         self.y += self.velocity[1]
-        if self.y > ROWS-2 or self.y < 2 or self.x > ROWS-2 or self.x < 2 :
+        if self.y > ROWS-2 or self.y < 2 or self.x > ROWS-2 or self.x < 2:
             self.velocity[1] = -self.velocity[1]
             self.velocity[0] = -self.velocity[0]
-        
+
         grid[self.x][self.y].make_dynamic_obs()
         # pygame.time.delay(300)
+
 
 class Spot:
     def __init__(self, row, col, width, total_rows):
@@ -61,7 +63,6 @@ class Spot:
         self.width = width
         self.total_rows = total_rows
         self.prev_color = None  # Initialize prev_color to None
-
 
     def get_pos(self):
         return self.row, self.col
@@ -119,8 +120,9 @@ class Spot:
     def make_dynamic_obs(self):
         self.prev_color = self.color  # save current color as prev_color
         self.color = GREY
-        
-    def time_became_dynamic_obs(self, list_dynamicobs, time_global):
+
+    def time_became_dynamic_obs(self, list_dynamicobs):
+        time_global = pygame.time.get_ticks()
         # print("time_global: ", time_global)
         for i in range(10):
             for obs in list_dynamicobs:
@@ -128,9 +130,10 @@ class Spot:
                 y = obs.y + obs.velocity[1]*i
                 if self.row == x and self.col == y:
                     # print("time_became_dynamic_obs: ", time_global + i*0.5)
-                    return time_global + i*0.5
+                    return time_global + i*500
 
-        return 10000
+        return 1000000000
+
     def draw(self, win):
         pygame.draw.rect(
             win, self.color, (self.x, self.y, self.width, self.width))
@@ -179,8 +182,8 @@ class Robot:
         self.x, self.y = startPos
         self.theta = 0
         self.width = width
-        self.vr = 30  # right velocity
-        self.vl = 30  # left velocity
+        self.vr = 20  # right velocity
+        self.vl = 20  # left velocity
         self.u = (self.vl + self.vr)/2  # linear velocity
         self.max_u = 30
         self.min_u = 10
@@ -232,7 +235,7 @@ class Robot:
         elif self.u < self.min_u:
             self.u = self.min_u
 
-    def move_to(self, angle, win, grid, target):
+    def move_to(self, angle, win, grid, target, total_dt):
         time_move = pygame.time.get_ticks()
         # FPS = self.dt /50
         self.W = angle
@@ -241,8 +244,15 @@ class Robot:
         self.vl = self.u - (self.W * self.width)/2
         # print("vr: ", self.vr, "vl: ", self.vl, "W: ", self.W, "u: ", self.u)
         last_time = pygame.time.get_ticks()
-        while pygame.time.get_ticks() - time_move < 1500 and dist_real((self.x, self.y), target) > 40:
+        while pygame.time.get_ticks() - time_move < 1500 and dist_real((self.x, self.y), target) > 10:
+            
             drawNotUpDate(win, grid, ROWS, WIDTH)
+            if (total_dt > 0.5):
+                # update dynamic obstacles
+                for obs in dynamic_obstacles:
+                    # check if obstacle will move out of bounds
+                    obs.move(grid)
+                total_dt = 0
             time_step = (pygame.time.get_ticks() - last_time) / 1000
             self.dt = time_step
             last_time = pygame.time.get_ticks()
@@ -263,9 +273,11 @@ class Robot:
             # time_step = (pygame.time.get_ticks() - last_time) / 1000
             # self.dt = time_step
             # last_time = pygame.time.get_ticks()
+            total_dt += (pygame.time.get_ticks() - last_time) / 1000
             pygame.display.update()
+        return total_dt
 
-    def find_spot_with_angle(self,grid: list[list[Spot]], angle, win):
+    def find_spot_with_angle(self, grid: list[list[Spot]], angle):
         gap = WIDTH // ROWS
         dt = 1.5
         theta = self.theta + angle
@@ -277,31 +289,32 @@ class Robot:
         row, col = int(x / gap), int(y / gap)
         row2, col2 = int((x + 10) / gap), int(y / gap)
         row3, col3 = int(x / gap), int((y + 10) / gap)
-        row4, col4 = int((x + 8) / gap), int((y + 8) / gap)
-        row5, col5 = int((x - 8) / gap), int((y - 8) / gap)
+        row4, col4 = int((x + 12) / gap), int((y + 12) / gap)
+        row5, col5 = int((x - 12) / gap), int((y - 12) / gap)
         row6, col6 = int((x - 10) / gap), int(y / gap)
         row7, col7 = int(x / gap), int((y - 10) / gap)
-        row8, col8 = int((x + 8) / gap), int((y - 8) / gap)
-        row9, col9 = int((x - 8) / gap), int((y + 8) / gap)
+        row8, col8 = int((x + 12) / gap), int((y - 12) / gap)
+        row9, col9 = int((x - 12) / gap), int((y + 12) / gap)
 
         spot = grid[row][col]
-        # pygame.draw.line(win, RED, (self.x, self.y), (x, y), 1)
-        # pygame.display.update()
         if spot.is_barrier() or grid[row2][col2].is_barrier() or grid[row3][col3].is_barrier() or grid[row4][col4].is_barrier() or grid[row5][col5].is_barrier() or grid[row6][col6].is_barrier() or grid[row7][col7].is_barrier() or grid[row8][col8].is_barrier() or grid[row9][col9].is_barrier():
             return None, None, None
-        if spot.time_became_dynamic_obs(dynamic_obstacles, time_global) < time_global + 5 :
-                # grid[row2][col2].time_became_dynamic_obs(dynamic_obstacles, time_global) < time_global + 5 or \
-                # grid[row3][col3].time_became_dynamic_obs(dynamic_obstacles, time_global) < time_global + 5 or \
-                # grid[row4][col4].time_became_dynamic_obs(dynamic_obstacles, time_global) < time_global + 5 or \
-                # grid[row5][col5].time_became_dynamic_obs(dynamic_obstacles, time_global) < time_global + 5 or \
-                # grid[row6][col6].time_became_dynamic_obs(dynamic_obstacles, time_global) < time_global + 5 or \
-                # grid[row7][col7].time_became_dynamic_obs(dynamic_obstacles, time_global) < time_global + 5 or \
-                # grid[row8][col8].time_became_dynamic_obs(dynamic_obstacles, time_global) < time_global + 5 or \
-                # grid[row9][col9].time_became_dynamic_obs(dynamic_obstacles, time_global) < time_global + 5:
+        
+        time_global = pygame.time.get_ticks()
+
+        if spot.time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
+            grid[row2][col2].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
+            grid[row3][col3].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
+            grid[row4][col4].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
+            grid[row5][col5].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
+            grid[row6][col6].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
+            grid[row7][col7].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
+            grid[row8][col8].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
+            grid[row9][col9].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000:
             return None, None, None
         return spot, x, y
 
-    def find_next_spot(self, grid: list[list[Spot]] , target, win, distance, kdTree: KDTree):
+    def find_next_spot(self, grid: list[list[Spot]], target, win, distance, kdTree: KDTree):
         current = self.x, self.y
         gap = WIDTH // ROWS
         # the next point will be based on velocity, time and angle
@@ -340,7 +353,7 @@ class Robot:
             else:
                 return None, None, None
 
-    def move_back(self, grid, win):
+    def move_back(self, grid, win, total_dt):
         time_move = pygame.time.get_ticks()
         # FPS = self.dt /50
         vr_prev = self.vr
@@ -350,6 +363,12 @@ class Robot:
         last_time = pygame.time.get_ticks()
         while pygame.time.get_ticks() - time_move < 2000:
             drawNotUpDate(win, grid, ROWS, WIDTH)
+            if (total_dt > 0.5):
+                # update dynamic obstacles
+                for obs in dynamic_obstacles:
+                    # check if obstacle will move out of bounds
+                    obs.move(grid)
+                total_dt = 0
             time_step = (pygame.time.get_ticks() - last_time) / 1000
             self.dt = time_step
             last_time = pygame.time.get_ticks()
@@ -365,10 +384,11 @@ class Robot:
             self.rect = self.rotated.get_rect(center=(self.x, self.y))
             self.draw(win)
             self.trail((self.x, self.y), win, GREEN)
+            total_dt += (pygame.time.get_ticks() - last_time) / 1000
             pygame.display.update()
         self.vr = vr_prev
         self.vl = vl_prev
-
+        return total_dt
 
     def draw(self, map):
         map.blit(self.rotated, self.rect)
@@ -394,6 +414,8 @@ def h(p1, p2):
     x1, y1 = p1
     x2, y2 = p2
     return abs(x1 - x2) + abs(y1 - y2)
+
+
 def dist_real(point1, point2):
     (x1, y1) = point1
     (x2, y2) = point2
@@ -406,6 +428,7 @@ def dist_real(point1, point2):
     py = (y1 - y2) ** 2
     distance = (px + py) ** 0.5
     return distance
+
 
 def BFS(grid: list[list[Spot]], end: Spot):
     # update the neighbor_distance of each node
@@ -437,11 +460,12 @@ def make_barrier_edge(grid: list[list[Spot]], win):
         grid[len(grid) - 1][i].make_barrier()
     drawNotUpDate(win, grid, ROWS, WIDTH)
 
+
 def find_path(grid: list[list[Spot]], start: Spot, end: Spot, distance_to_end, distance_to_start, kdTree, win):
     gap = WIDTH // ROWS
     current_start = start.get_real_pos()[0], start.get_real_pos()[1]
     current_end = end.get_real_pos()[0], end.get_real_pos()[1]
-    path_to_end = [] 
+    path_to_end = []
     path_to_end.append(current_start)
     path_to_start = []
     path_to_start.append(current_end)
@@ -449,17 +473,19 @@ def find_path(grid: list[list[Spot]], start: Spot, end: Spot, distance_to_end, d
 
     while IsPlaning:
         for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
+            if event.type == pygame.QUIT:
+                pygame.quit()
         # print("current_start", current_start)
-        dis_obs_current_to_end , _ = kdTree.query([current_start])
-        pygame.draw.circle(win, GREY, (int(current_start[0]), int(current_start[1])), int(dis_obs_current_to_end), 3)
+        dis_obs_current_to_end, _ = kdTree.query([current_start])
+        pygame.draw.circle(win, GREY, (int(current_start[0]), int(
+            current_start[1])), int(dis_obs_current_to_end), 3)
         for i, point in enumerate(path_to_start):
             dis_current_end = dist_real(current_start, point)
             if dis_obs_current_to_end > dis_current_end:
                 # join path_to_start to path_to_end
                 path_to_end = path_to_end + path_to_start[i::-1]
-                pygame.draw.line(win, GREEN, (int(current_start[0]), int(current_start[1])), (int(point[0]), int(point[1])), 3)
+                pygame.draw.line(win, GREEN, (int(current_start[0]), int(
+                    current_start[1])), (int(point[0]), int(point[1])), 3)
                 pygame.display.update()
                 IsPlaning = False
                 break
@@ -467,32 +493,38 @@ def find_path(grid: list[list[Spot]], start: Spot, end: Spot, distance_to_end, d
             Min_score = 10000
             next_point_max = None
             for i in range(360):
-                next_point = int(current_start[0] + dis_obs_current_to_end * math.cos(math.radians(i))), int(current_start[1] + dis_obs_current_to_end* math.sin(math.radians(i)))
+                next_point = int(current_start[0] + dis_obs_current_to_end * math.cos(math.radians(
+                    i))), int(current_start[1] + dis_obs_current_to_end * math.sin(math.radians(i)))
                 if next_point[0] < 0 or next_point[0] > WIDTH or next_point[1] < 0 or next_point[1] > WIDTH:
                     continue
                 # print("next_point: ", next_point[0], next_point[1])
-                dis_obs_next , _ = kdTree.query([next_point])
+                dis_obs_next, _ = kdTree.query([next_point])
                 if dis_obs_next == 0:
                     continue
-                row, col = int(next_point[0]/ gap), int(next_point[1] / gap)
-                score = 150*(1.0 / dis_obs_next) + distance_to_end[grid[row][col]]
+                row, col = int(next_point[0] / gap), int(next_point[1] / gap)
+                score = 150*(1.0 / dis_obs_next) + \
+                    distance_to_end[grid[row][col]]
                 if score < Min_score:
                     Min_score = score
                     next_point_max = next_point
-            pygame.draw.line(win, GREEN, (int(current_start[0]), int(current_start[1])), (int(next_point_max[0]), int(next_point_max[1])), 3)
+            pygame.draw.line(win, GREEN, (int(current_start[0]), int(
+                current_start[1])), (int(next_point_max[0]), int(next_point_max[1])), 3)
             pygame.display.update()
             current_start = next_point_max
             path_to_end.append(current_start)
 
         if not IsPlaning:
             break
-        dis_obs_current_to_start , _ = kdTree.query([current_end])
-        pygame.draw.circle(win, GREY, (int(current_end[0]), int(current_end[1])), int(dis_obs_current_to_start), 3)
+        dis_obs_current_to_start, _ = kdTree.query([current_end])
+        pygame.draw.circle(win, GREY, (int(current_end[0]), int(
+            current_end[1])), int(dis_obs_current_to_start), 3)
         for i, point in enumerate(path_to_end):
             dis_current_start = dist_real(current_end, current_start)
             if dis_obs_current_to_start > dis_current_start:
-                path_to_end = path_to_end[:i] + path_to_start[::-1]
-                pygame.draw.line(win, GREEN, (int(current_end[0]), int(current_end[1])), (int(current_start[0]), int(current_start[1])), 3)
+                # print("path_to_end", path_to_end)
+                path_to_end = path_to_end[:i-1:] + path_to_start[::-1]
+                pygame.draw.line(win, GREEN, (int(current_end[0]), int(
+                    current_end[1])), (int(current_start[0]), int(current_start[1])), 3)
                 pygame.display.update()
                 IsPlaning = False
                 break
@@ -500,19 +532,22 @@ def find_path(grid: list[list[Spot]], start: Spot, end: Spot, distance_to_end, d
             Min_score = 10000
             next_point_max = None
             for i in range(360):
-                next_point = int(current_end[0] + dis_obs_current_to_start * math.cos(math.radians(i))), int(current_end[1] + dis_obs_current_to_start* math.sin(math.radians(i)))
+                next_point = int(current_end[0] + dis_obs_current_to_start * math.cos(math.radians(
+                    i))), int(current_end[1] + dis_obs_current_to_start * math.sin(math.radians(i)))
                 if next_point[0] < 0 or next_point[0] > WIDTH or next_point[1] < 0 or next_point[1] > WIDTH:
                     continue
                 # print("next_point: ", next_point[0], next_point[1])
-                dis_obs_next , _ = kdTree.query([next_point])
+                dis_obs_next, _ = kdTree.query([next_point])
                 if dis_obs_next == 0:
                     continue
-                row, col = int(next_point[0]/ gap), int(next_point[1] / gap)
-                score = 150*(1.0 / dis_obs_next) + distance_to_start[grid[row][col]]
+                row, col = int(next_point[0] / gap), int(next_point[1] / gap)
+                score = 150*(1.0 / dis_obs_next) + \
+                    distance_to_start[grid[row][col]]
                 if score < Min_score:
                     Min_score = score
                     next_point_max = next_point
-            pygame.draw.line(win, GREEN, (int(current_end[0]), int(current_end[1])), (int(next_point_max[0]), int(next_point_max[1])), 3)
+            pygame.draw.line(win, GREEN, (int(current_end[0]), int(
+                current_end[1])), (int(next_point_max[0]), int(next_point_max[1])), 3)
             pygame.display.update()
             current_end = next_point_max
             path_to_start.append(current_end)
@@ -521,49 +556,65 @@ def find_path(grid: list[list[Spot]], start: Spot, end: Spot, distance_to_end, d
     x = point_control[:, 0]
     y = point_control[:, 1]
     k = 3
-    tck, u = interpolate.splprep([x, y], k = k)
+    tck, u = interpolate.splprep([x, y], k=k)
     u_new = np.linspace(u.min(), u.max(), 100)
     x_bspline, y_bspline = interpolate.splev(u_new, tck)
 
     B_spline = list(zip(x_bspline, y_bspline))
     for i in range(len(B_spline) - 1):
-        pygame.draw.line(win, RED, (int(B_spline[i][0]), int(B_spline[i][1])), (int(B_spline[i+1][0]), int(B_spline[i+1][1])), 3)
+        pygame.draw.line(win, RED, (int(B_spline[i][0]), int(
+            B_spline[i][1])), (int(B_spline[i+1][0]), int(B_spline[i+1][1])), 3)
         pygame.display.update()
 
     return B_spline
 
 
 def find_move_path(robot: Robot, draw, grid, start, end, win):
-    total_dt = 0
     global time_global
+    fixEndPoint = end.get_real_pos()
     distance_to_end = BFS(grid, end)
     distance_to_start = BFS(grid, start)
     make_barrier_edge(grid, win)
-    obstacle = [spot.get_real_pos() for row in grid for spot in row if spot.is_barrier()]
+    obstacle = [spot.get_real_pos()
+                for row in grid for spot in row if spot.is_barrier()]
     kdTree = KDTree(obstacle)
-    robot.pathRb = find_path(grid=grid, start=start, end=end, win=win, distance_to_end=distance_to_end, distance_to_start=distance_to_start, kdTree=kdTree)
+    robot.pathRb = find_path(grid=grid, start=start, end=end, win=win,
+                             distance_to_end=distance_to_end, distance_to_start=distance_to_start, kdTree=kdTree)
+    kdTree_path = KDTree(robot.pathRb)
     pygame.time.delay(5000)
-    robot.pathRb.pop(0)
+    # print(robot.pathRb.pop(0))
     time_global = 0
-    lasttime = pygame.time.get_ticks()
-    delta_t = 0.1
-    while len(robot.pathRb) > 0:
-        target = robot.pathRb.pop(0) # target is float
-        # target = end.get_real_pos()
-        # print("target: ", target)
-        obstacle_dist_pre = 0
-        while dist_real((robot.x, robot.y), target) > 40:
+
+    # pop the point that is too close to the robot
+    index = 0
+    while dist_real((robot.x, robot.y), robot.pathRb[index]) < 70:
+        index += 1
+    print("index: ", index)
+    print("distance: ", dist_real((robot.x, robot.y), robot.pathRb[index]))
+    total_dt = 0
+    last_time = pygame.time.get_ticks()
+    while dist_real((robot.x, robot.y), fixEndPoint) > 20:
+        target = robot.pathRb[index] # target is float
+        index += 1
+        while dist_real((robot.x, robot.y), target) > 20:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
 
             drawNotUpDate(win, grid, ROWS, WIDTH)
             if (total_dt > 0.5):
-            # update dynamic obstacles
+                # update dynamic obstacles
                 for obs in dynamic_obstacles:
                     # check if obstacle will move out of bounds
                     obs.move(grid)
                 total_dt = 0
+            mini_dis_to_target, target_min = kdTree_path.query([(robot.x, robot.y)])
+            target_min = target_min[0][0]
+            dis_to_current_target = dist_real((robot.x, robot.y), target)
+            if target != robot.pathRb[target_min] and mini_dis_to_target < dis_to_current_target and target_min > index:
+                target = robot.pathRb[target_min]
+                index = target_min + 1
+                
             # pygame.display.update()
             # robot.dt = (pygame.time.get_ticks() - lasttime) / 1000
             # total_dt += robot.dt
@@ -574,21 +625,17 @@ def find_move_path(robot: Robot, draw, grid, start, end, win):
             # robot.trail((robot.x, robot.y), win, RED)
             # pygame.display.update()
 
-
             # set_time = pygame.time.get_ticks()
-            check_point_time = pygame.time.get_ticks()
             next_pos, angle, obstacle_dist = robot.find_next_spot(
                 grid, target, win, distance_to_end, kdTree)
-            pygame.draw.line(win, RED, (int(robot.x), int(robot.y)), (int(target[0]), int(target[1])), 3)
+            # pygame.draw.line(win, RED, (int(robot.x), int(robot.y)), (int(target[0]), int(target[1])), 5)
             pygame.display.update()
-        
-            delta_t = (pygame.time.get_ticks() - check_point_time)
-
+            total_dt += (pygame.time.get_ticks() - last_time) / 1000
             if next_pos:
                 # set_time = (pygame.time.get_ticks() - set_time) / 1000
                 # print("set time 1: ", set_time)
                 # set_time = pygame.time.get_ticks()
-                robot.move_to(angle, win, grid, target)
+                total_dt = robot.move_to(angle, win, grid, target, total_dt)
                 # set_time = (pygame.time.get_ticks() - set_time) / 1000
                 # print("move time 2: ", set_time)
 
@@ -600,10 +647,8 @@ def find_move_path(robot: Robot, draw, grid, start, end, win):
                 # obstacle_dist_pre = obstacle_dist
                 # robot.chage_linear_velocity(delta_u)
             else:
-                robot.move_back(grid, win)
-            total_dt += (pygame.time.get_ticks() - lasttime - delta_t) / 1000
-            time_global += (pygame.time.get_ticks() - lasttime - delta_t) / 1000
-            lasttime = pygame.time.get_ticks()
+                total_dt = robot.move_back(grid, win, total_dt)
+            last_time = pygame.time.get_ticks()
 
     return True
 
@@ -631,19 +676,22 @@ def load_map(file_name, grid: list[list[Spot]], name_map):
     file_name.close()
     return grid, start, end
 
+
 def load_dynamic_obstacles(file_name):
     dynamic_obstacles = []
     with open(file_name, 'r') as f:
         for line in f:
             # parse obstacle position and velocity from file
-            x, y, vx, vy = map(int, line.strip().replace('[', '').replace(']', '').split(','))
-            
+            x, y, vx, vy = map(int, line.strip().replace(
+                '[', '').replace(']', '').split(','))
+
             # create dynamic obstacle with given velocity and position
             obs = DynamicObstacle(x, y, [vx, vy])
 
             # add obstacle to the list
             dynamic_obstacles.append(obs)
     return dynamic_obstacles
+
 
 def make_grid(rows, width):
     grid = []
@@ -658,12 +706,12 @@ def make_grid(rows, width):
 
 
 def draw_grid(win, rows, width):
-    gap = width // rows
-    for i in range(rows):
-        pygame.draw.line(win, GREY, (0, i * gap), (width, i * gap))
-        for j in range(rows):
-            pygame.draw.line(win, GREY, (j * gap, 0), (j * gap, width))
-
+    # gap = width // rows
+    # for i in range(rows):
+    #     pygame.draw.line(win, GREY, (0, i * gap), (width, i * gap))
+    #     for j in range(rows):
+    #         pygame.draw.line(win, GREY, (j * gap, 0), (j * gap, width))
+    pass
 
 def draw(win, grid, rows, width):
     win.fill(WHITE)
@@ -721,7 +769,8 @@ def main(win, width):
                     end = None
                     grid = make_grid(ROWS, width)
                     grid, start, end = load_map(filename, grid, "map1")
-                    dynamic_obstacles = load_dynamic_obstacles("dynamic_obstacles.txt")
+                    dynamic_obstacles = load_dynamic_obstacles(
+                        "dynamic_obstacles.txt")
                     Map = "map1"
                 if event.key == pygame.K_2:
                     MARK = False
@@ -729,7 +778,8 @@ def main(win, width):
                     end = None
                     grid = make_grid(ROWS, width)
                     grid, start, end = load_map(filename, grid, "map2")
-                    dynamic_obstacles = load_dynamic_obstacles("dynamic_obstacles.txt")
+                    dynamic_obstacles = load_dynamic_obstacles(
+                        "dynamic_obstacles.txt")
                     Map = "map2"
                 if event.key == pygame.K_3:
                     MARK = False
@@ -737,7 +787,8 @@ def main(win, width):
                     end = None
                     grid = make_grid(ROWS, width)
                     grid, start, end = load_map(filename, grid, "map3")
-                    dynamic_obstacles = load_dynamic_obstacles("dynamic_obstacles.txt")
+                    dynamic_obstacles = load_dynamic_obstacles(
+                        "dynamic_obstacles.txt")
                     Map = "map3"
                 if event.key == pygame.K_4:
                     MARK = False
@@ -745,7 +796,8 @@ def main(win, width):
                     end = None
                     grid = make_grid(ROWS, width)
                     grid, start, end = load_map(filename, grid, "map4")
-                    dynamic_obstacles = load_dynamic_obstacles("dynamic_obstacles.txt")
+                    dynamic_obstacles = load_dynamic_obstacles(
+                        "dynamic_obstacles.txt")
                     Map = "map4"
                 if event.key == pygame.K_5:
                     MARK = False
@@ -753,7 +805,8 @@ def main(win, width):
                     end = None
                     grid = make_grid(ROWS, width)
                     grid, start, end = load_map(filename, grid, "map5")
-                    dynamic_obstacles = load_dynamic_obstacles("dynamic_obstacles.txt")
+                    dynamic_obstacles = load_dynamic_obstacles(
+                        "dynamic_obstacles.txt")
                     Map = "map5"
             if pygame.mouse.get_pressed()[0]:  # LEFT
                 pos = pygame.mouse.get_pos()
@@ -800,3 +853,10 @@ def main(win, width):
 
 
 main(WIN, WIDTH)
+
+# --------------------------------------------------------------------------------------------------------------
+# kiểm tra obs trong bán kính an toàn trong khoảng t s --> replan
+# làm đến đầu chụp lại hình đưa vào slide
+
+# ------------------------------------------------------------
+# thay doi thoi gina va van toc trong viec tim cac diem tiep theo

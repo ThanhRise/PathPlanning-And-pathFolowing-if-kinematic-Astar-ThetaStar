@@ -1,0 +1,9 @@
+ref
+
+# txt
+*.txt
+
+# images
+image
+.jpg
+.png
