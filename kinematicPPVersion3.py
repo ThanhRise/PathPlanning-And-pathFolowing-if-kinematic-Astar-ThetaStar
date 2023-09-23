@@ -4,18 +4,13 @@ import math
 from sklearn.neighbors import KDTree
 import scipy.interpolate as interpolate
 import numpy as np
+import time
 
 
 WIDTH = 800
 ROWS = 50
 WIN = pygame.display.set_mode((WIDTH, WIDTH))
 pygame.display.set_caption("Theta* Path Finding Algorithm")
-
-# def write_info(win, vl, vr, theta):
-#     txt = f"vl = {vl} m/s | vr = {vr} m/s | theta = {int(math.degrees(theta))} rad"
-#     font = pygame.font.SysFont("comicsans", 20)
-#     text = font.render(txt, 1, (0, 0, 0))
-#     win.blit(text, (WIDTH - 10 - text.get_width(), 10))
 
 
 RED = (255, 0, 0)
@@ -32,23 +27,66 @@ path = []
 
 
 class DynamicObstacle:
-    possible_velocities = ((0, 1), (-1, 0), (1, 0), (0, -1))
 
-    def __init__(self, x, y, velocity):
+    def __init__(self, x, y, d, theta, velocity):
         self.x = x
         self.y = y
+        self.d = d
+        # change theta to radian
+        self.theta = math.radians(theta)
         self.velocity = velocity
 
-    def move(self, grid):
-        grid[self.x][self.y].reset_to_prev_color()
-        self.x += self.velocity[0]
-        self.y += self.velocity[1]
-        if self.y > ROWS-2 or self.y < 2 or self.x > ROWS-2 or self.x < 2:
-            self.velocity[1] = -self.velocity[1]
-            self.velocity[0] = -self.velocity[0]
+    def move(self, grid, dt):
+        x = self.x + self.velocity * math.cos(self.theta) * dt
+        y = self.y + self.velocity * math.sin(self.theta)  * dt
+        if x < 0:
+            x = - x
+            self.theta = math.pi - self.theta
+        if x > 800 - 16:
+            x = 800 - 16 - (x - 800 + 1)
+            self.theta = math.pi - self.theta
+        if y < 0:
+            y = - y
+            self.theta = - self.theta
+        if y > 800 - 16:
+            y = 800 - 16 - (y - 800 + 1)
+            self.theta = - self.theta
+        # change theta when x, y is on the barrier
+        if self.theta < 0:
+            self.theta = self.theta + math.pi * 2
+        theta = self.theta
+        # print(x // 16, y // 16)
+        if grid[int(x // 16)][int(y // 16)].is_barrier():
+            if self.theta >= 0 and self.theta <= math.pi / 2:
+                theta = - self.theta
+                if grid[int((self.x + self.velocity * math.cos(theta) * dt)//16)][int(y // 16)].is_barrier():
+                    theta = math.pi - self.theta
+            
+            if self.theta >= math.pi / 2 and self.theta <= math.pi:
+                theta = math.pi - self.theta
+                if grid[int(x // 16)][int((self.y + self.velocity * math.sin(theta)  * dt)//16)].is_barrier():
+                    theta = - self.theta
+            
+            if self.theta >= math.pi and self.theta <= math.pi * 3 / 2:
+                theta = - self.theta
+                if grid[int(x // 16)][int((self.y + self.velocity * math.sin(theta)* dt)//16)].is_barrier():
+                    theta = math.pi - self.theta
+                
+            if self.theta > math.pi * 3 / 2 and self.theta <= math.pi * 2:
+                theta = - self.theta
+                if grid[int((self.x + self.velocity * math.cos(theta) * dt)//16)][int(y // 16)].is_barrier():
+                    theta = math.pi - self.theta
+        if self.theta == theta:
+            self.x = x
+            self.y = y
+        else:
+            self.theta = theta
+            self.x = self.x + self.velocity * math.cos(self.theta) * dt
+            self.y = self.y + self.velocity * math.sin(self.theta) * dt
 
-        grid[self.x][self.y].make_dynamic_obs()
-        # pygame.time.delay(300)
+    def draw(self, win):
+        pygame.draw.circle(
+            win, YELLOW, (int(self.x), int(self.y)), self.d, 100)
 
 
 class Spot:
@@ -101,6 +139,7 @@ class Spot:
         self.color = GREEN
 
     def make_barrier(self):
+        self.prev_color = self.color
         self.color = BLACK
 
     def make_end(self):
@@ -121,18 +160,6 @@ class Spot:
         self.prev_color = self.color  # save current color as prev_color
         self.color = GREY
 
-    def time_became_dynamic_obs(self, list_dynamicobs):
-        time_global = pygame.time.get_ticks()
-        # print("time_global: ", time_global)
-        for i in range(10):
-            for obs in list_dynamicobs:
-                x = obs.x + obs.velocity[0]*i
-                y = obs.y + obs.velocity[1]*i
-                if self.row == x and self.col == y:
-                    # print("time_became_dynamic_obs: ", time_global + i*0.5)
-                    return time_global + i*500
-
-        return 1000000000
 
     def draw(self, win):
         pygame.draw.rect(
@@ -141,7 +168,7 @@ class Spot:
     # update the neighbors for BFS
 
     def update_neighbors_distance(self, grid):
-        # self.neighbors_distance = []
+        self.neighbors_distance = []
         distance_diagonal = math.sqrt(2)
         # DOWN
         if self.row < self.total_rows - 1 and not grid[self.row + 1][self.col].is_barrier():
@@ -156,21 +183,17 @@ class Spot:
         if self.col > 0 and not grid[self.row][self.col - 1].is_barrier():  # LEFT
             self.neighbors_distance.append((grid[self.row][self.col - 1], 1))
 
-        if self.row < self.total_rows - 1 and self.col < self.total_rows - 1 and not grid[self.row + 1][self.col + 1].is_barrier():
-            self.neighbors_distance.append(
-                (grid[self.row + 1][self.col + 1], distance_diagonal))
+        if self.row < self.total_rows - 1 and self.col < self.total_rows - 1 and not grid[self.row + 1][self.col + 1].is_barrier() and (not grid[self.row + 1][self.col].is_barrier() or not grid[self.row][self.col + 1].is_barrier()):
+            self.neighbors_distance.append((grid[self.row + 1][self.col + 1], distance_diagonal))
 
-        if self.row > 0 and self.col < self.total_rows - 1 and not grid[self.row - 1][self.col + 1].is_barrier():
-            self.neighbors_distance.append(
-                (grid[self.row - 1][self.col + 1], distance_diagonal))
+        if self.row > 0 and self.col < self.total_rows - 1 and not grid[self.row - 1][self.col + 1].is_barrier() and (not grid[self.row - 1][self.col].is_barrier() or not grid[self.row][self.col + 1].is_barrier()): 
+            self.neighbors_distance.append((grid[self.row - 1][self.col + 1], distance_diagonal))
 
-        if self.row < self.total_rows - 1 and self.col > 0 and not grid[self.row + 1][self.col - 1].is_barrier():
-            self.neighbors_distance.append(
-                (grid[self.row + 1][self.col - 1], distance_diagonal))
+        if self.row < self.total_rows - 1 and self.col > 0 and not grid[self.row + 1][self.col - 1].is_barrier() and (not grid[self.row + 1][self.col].is_barrier() or not grid[self.row][self.col - 1].is_barrier()):
+            self.neighbors_distance.append((grid[self.row + 1][self.col - 1], distance_diagonal))
 
-        if self.row > 0 and self.col > 0 and not grid[self.row - 1][self.col - 1].is_barrier():
-            self.neighbors_distance.append(
-                (grid[self.row - 1][self.col - 1], distance_diagonal))
+        if self.row > 0 and self.col > 0 and not grid[self.row - 1][self.col - 1].is_barrier() and (not grid[self.row - 1][self.col].is_barrier() or not grid[self.row][self.col - 1].is_barrier()):
+            self.neighbors_distance.append((grid[self.row - 1][self.col - 1], distance_diagonal))
 
     def __lt__(self, other):
         return False
@@ -194,6 +217,7 @@ class Robot:
         self.pathRb = []
         self.angle = []
         one_degree = math.pi / 180
+        self.KDTREE = None
         self.angle.append(0)
         for i in range(1, 60, 4):
             self.angle.append(i * one_degree)
@@ -245,23 +269,18 @@ class Robot:
         self.vl = self.u - (self.W * self.width)/2
         # print("vr: ", self.vr, "vl: ", self.vl, "W: ", self.W, "u: ", self.u)
         last_time = pygame.time.get_ticks()
-        while pygame.time.get_ticks() - time_move < 1500 and dist_real((self.x, self.y), target) > 10:
+        while pygame.time.get_ticks() - time_move < 1500 and dist_real((self.x, self.y), target) > 20:
 
             drawNotUpDate(win, grid, ROWS, WIDTH)
-            if (total_dt > 0.5):
-                # update dynamic obstacles
-                for obs in dynamic_obstacles:
-                    # check if obstacle will move out of bounds
-                    obs.move(grid)
-                total_dt = 0
+
             time_step = (pygame.time.get_ticks() - last_time) / 1000
             self.dt = time_step
             last_time = pygame.time.get_ticks()
             self.x += ((self.vl + self.vr)/2)*math.cos(self.theta)*self.dt
             self.y += ((self.vl + self.vr)/2)*math.sin(self.theta)*self.dt
             self.theta += (self.vr - self.vl)/self.width*self.dt/1.5
-
-            # self.theta += self.W / 400
+            for obs in dynamic_obstacles:
+                obs.move(grid, self.dt)
 
             if self.theta >= math.pi * 2 or self.theta <= -2*math.pi:
                 self.theta = 0
@@ -271,24 +290,23 @@ class Robot:
             self.rect = self.rotated.get_rect(center=(self.x, self.y))
             self.draw(win)
             self.trail((self.x, self.y), win, GREEN)
-            # time_step = (pygame.time.get_ticks() - last_time) / 1000
-            # self.dt = time_step
-            # last_time = pygame.time.get_ticks()
+            for obs in dynamic_obstacles:
+                obs.draw(win)
             total_dt += (pygame.time.get_ticks() - last_time) / 1000
             pygame.display.update()
 
             # check obstacle
-            if pygame.time.get_ticks() - time_replan > 5000:
+            if pygame.time.get_ticks() - time_replan > 10000:
                 for obs in dynamic_obstacles:
                     dist = dist_real((self.x, self.y),
-                                     (obs.x * 16, obs.y * 16))
-                    # print("dist: ", dist)
-                    if dist < 50:
+                                     (obs.x, obs.y))
+                    angle = math.atan2(obs.y - self.y, obs.x - self.x)  # inverted coordinate system
+                    robotTheta = self.theta if abs(self.theta) < math.pi else self.theta - math.pi * 2
+                    if dist < 100 and abs(angle - robotTheta) < math.pi/4:
                         # replan
                         self.pathRb = []
                         replan(self, grid, end, win)
-                        return total_dt
-        return total_dt
+                        return
 
     def find_spot_with_angle(self, grid: list[list[Spot]], angle, win):
         gap = WIDTH // ROWS
@@ -314,19 +332,6 @@ class Robot:
         # pygame.display.update()
         if spot.is_barrier() or grid[row2][col2].is_barrier() or grid[row3][col3].is_barrier() or grid[row4][col4].is_barrier() or grid[row5][col5].is_barrier() or grid[row6][col6].is_barrier() or grid[row7][col7].is_barrier() or grid[row8][col8].is_barrier() or grid[row9][col9].is_barrier():
             return None, None, None
-
-        time_global = pygame.time.get_ticks()
-
-        # if spot.time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
-        #     grid[row2][col2].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
-        #     grid[row3][col3].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
-        #     grid[row4][col4].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
-        #     grid[row5][col5].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
-        #     grid[row6][col6].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
-        #     grid[row7][col7].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
-        #     grid[row8][col8].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000 or \
-        #     grid[row9][col9].time_became_dynamic_obs(dynamic_obstacles) < time_global + 4000:
-        #     return None, None, None
         return spot, x, y
 
     def find_next_spot(self, grid: list[list[Spot]], target, win, distance, kdTree: KDTree):
@@ -353,16 +358,12 @@ class Robot:
                     nearest_obstacle_dist, _ = kdTree.query(
                         [(neighbors[i][1], neighbors[i][2])])
                     nearest_core = 1 / (nearest_obstacle_dist + 1)
-                    if nearest_core * 250 + dist < f_cost:
-                        f_cost = nearest_core * 250 + dist
+                    if nearest_core * 300 + dist < f_cost:
+                        f_cost = nearest_core * 300 + dist
                         min_spot = neighbors[i][0]
                         angle_selected = neighbors[i][3]
                         obstacle_dist = nearest_obstacle_dist
 
-                    # if distance[neighbors[i][0]] < min_dist_spot and dist < min_dist:
-                    #     min_dist_spot = distance[neighbors[i][0]]
-                    #     min_spot = neighbors[i][0]
-                    #     angle_selected = neighbors[i][3]
 
                 return min_spot, angle_selected, obstacle_dist
             else:
@@ -378,18 +379,14 @@ class Robot:
         last_time = pygame.time.get_ticks()
         while pygame.time.get_ticks() - time_move < 2000:
             drawNotUpDate(win, grid, ROWS, WIDTH)
-            if (total_dt > 0.5):
-                # update dynamic obstacles
-                for obs in dynamic_obstacles:
-                    # check if obstacle will move out of bounds
-                    obs.move(grid)
-                total_dt = 0
-            time_step = (pygame.time.get_ticks() - last_time) / 1000
-            self.dt = time_step
             last_time = pygame.time.get_ticks()
             self.x += ((self.vl + self.vr)/2)*math.cos(self.theta)*self.dt
             self.y += ((self.vl + self.vr)/2)*math.sin(self.theta)*self.dt
             # self.theta -= (self.vr - self.vl)/self.width*self.dt/1.5
+            for obs in dynamic_obstacles:
+                # check if obstacle will move out of bounds
+                obs.move(grid, self.dt)
+
 
             if self.theta >= math.pi * 2 or self.theta <= -2*math.pi:
                 self.theta = 0
@@ -399,11 +396,11 @@ class Robot:
             self.rect = self.rotated.get_rect(center=(self.x, self.y))
             self.draw(win)
             self.trail((self.x, self.y), win, GREEN)
-            total_dt += (pygame.time.get_ticks() - last_time) / 1000
+            for obs in dynamic_obstacles:
+                obs.draw(win)
             pygame.display.update()
         self.vr = vr_prev
         self.vl = vl_prev
-        return total_dt
 
     def draw(self, map):
         map.blit(self.rotated, self.rect)
@@ -479,30 +476,94 @@ def make_barrier_edge(grid: list[list[Spot]], win):
 def replan(robot: Robot, grid: list[list[Spot]], end, win):
     global IsRePlan
     global time_replan
+    time_replan = 0
     IsRePlan = True
     print("replan")
-    for i in range(6):
-        for obs in dynamic_obstacles:
-            x = obs.x + obs.velocity[0]*i
-            y = obs.y + obs.velocity[1]*i
-            if x > 0 and x < 50 and y > 0 and y < 50:
-                grid[x][y].make_barrier()
+    restore_grid = []
+    for obs in dynamic_obstacles:
+        if dist_real((obs.x, obs.y), (robot.x, robot.y)) < 200:
+            # print("angle", obs.theta, "atan2", math.atan2(obs.y - robot.y, obs.x - robot.x), "angle - atan2", obs.theta - math.atan2(obs.y - robot.y, obs.x - robot.x))
+            x_next = obs.x + 8 * obs.velocity * math.cos(obs.theta)
+            y_next = obs.y + 8 * obs.velocity * math.sin(obs.theta)
+            if x_next <= 8:
+                x_next = 9
+            if x_next >= 792:
+                x_next = 790
+            if y_next <= 8:
+                y_next = 9
+            if y_next >= 792:
+                y_next = 790
+            # spot_x_current = int(obs.x // 16)
+            # spot_y_current = int(obs.y // 16)
+            # spot_x_next = int(x_next // 16)
+            # spot_y_next = int(y_next // 16)
+            # print('current', spot_x_current, spot_y_current)
+            # print('next', spot_x_next, spot_y_next)
+            # while spot_x_current != spot_x_next or spot_y_current != spot_y_next:
+            #     if not grid[spot_x_current][spot_y_current].is_barrier():
+            #         restore_grid.append(grid[spot_x_current][spot_y_current])
+            #         grid[spot_x_current][spot_y_current].make_barrier()
+            #         print('barrier', spot_x_current, spot_y_current)
+            #     if spot_x_current < spot_x_next:
+            #         spot_x_current += 1
+            #     if spot_x_current > spot_x_next:
+            #         spot_x_current -= 1
+            #     if spot_y_current < spot_y_next:
+            #         spot_y_current += 1
+            #     if spot_y_current > spot_y_next:
+            #         spot_y_current -= 1
+            x_current = int(obs.x)
+            y_current = int(obs.y)
+            x_next = int(x_next)
+            y_next = int(y_next)
+            while dist_real((x_current, y_current), (x_next, y_next)) > 15 and x_current < 800 and x_current > 0 and y_current < 800 and y_current > 0:
+                if not grid[int(x_current // 16)][int(y_current // 16)].is_barrier():
+                    restore_grid.append(grid[int(x_current // 16)][int(y_current // 16)])
+                    grid[int(x_current // 16)][int(y_current // 16)].make_barrier()
+                if not grid[int((x_current + 8) // 16)][int(y_current // 16)].is_barrier():
+                    restore_grid.append(grid[int((x_current + 8) // 16)][int(y_current // 16)])
+                    grid[int((x_current + 8) // 16)][int(y_current // 16)].make_barrier()
+                if not grid[int(x_current // 16)][int((y_current + 8) // 16)].is_barrier():
+                    restore_grid.append(grid[int(x_current // 16)][int((y_current + 8) // 16)])
+                    grid[int(x_current // 16)][int((y_current + 8) // 16)].make_barrier()
+                if not grid[int((x_current + 8) // 16)][int((y_current + 8) // 16)].is_barrier():
+                    restore_grid.append(grid[int((x_current + 8) // 16)][int((y_current + 8) // 16)])
+                    grid[int((x_current + 8) // 16)][int((y_current + 8) // 16)].make_barrier()
+                if not grid[int((x_current - 8) // 16)][int(y_current // 16)].is_barrier():
+                    restore_grid.append(grid[int((x_current - 8) // 16)][int(y_current // 16)])
+                    grid[int((x_current - 8) // 16)][int(y_current // 16)].make_barrier()
+                if not grid[int(x_current // 16)][int((y_current - 8) // 16)].is_barrier():
+                    restore_grid.append(grid[int(x_current // 16)][int((y_current - 8) // 16)])
+                    grid[int(x_current // 16)][int((y_current - 8) // 16)].make_barrier()
+                if not grid[int((x_current - 8) // 16)][int((y_current - 8) // 16)].is_barrier():
+                    restore_grid.append(grid[int((x_current - 8) // 16)][int((y_current - 8) // 16)])
+                    grid[int((x_current - 8) // 16)][int((y_current - 8) // 16)].make_barrier()
+                if not grid[int((x_current + 8) // 16)][int((y_current - 8) // 16)].is_barrier():
+                    restore_grid.append(grid[int((x_current + 8) // 16)][int((y_current - 8) // 16)])
+                    grid[int((x_current + 8) // 16)][int((y_current - 8) // 16)].make_barrier()
+                if not grid[int((x_current - 8) // 16)][int((y_current + 8) // 16)].is_barrier():
+                    restore_grid.append(grid[int((x_current - 8) // 16)][int((y_current + 8) // 16)])
+                    grid[int((x_current - 8) // 16)][int((y_current + 8) // 16)].make_barrier()
+
+                x_current += 16 * math.cos(obs.theta)
+                y_current += 16 * math.sin(obs.theta)
+
+    draw(win, grid, ROWS, WIDTH)
+    time.sleep(1)
     current_start = grid[int(robot.x / 16)][int(robot.y / 16)]
     distance_to_end = BFS(grid, end)
     distance_to_start = BFS(grid, current_start)
     obstacle = [spot.get_real_pos()
                 for row in grid for spot in row if spot.is_barrier()]
-    kdTree_temp = KDTree(obstacle)
+    robot.KDTREE = KDTree(obstacle)
     robot.pathRb = find_path(
-        grid, current_start, end, distance_to_end, distance_to_start, kdTree_temp, win)
+        grid, current_start, end, distance_to_end, distance_to_start, robot.KDTREE, win)
 
-    for i in range(10):
-        for obs in dynamic_obstacles:
-            x = obs.x + obs.velocity[0]*i
-            y = obs.y + obs.velocity[1]*i
-            grid[x][y].reset()
+    for spot in restore_grid:
+        spot.reset_to_prev_color()
+    time.sleep(1)
+    draw(win, grid, ROWS, WIDTH)
     time_replan = pygame.time.get_ticks()
-    # return pygame.time.get_ticks()
 
 
 def find_path(grid: list[list[Spot]], start: Spot, end: Spot, distance_to_end, distance_to_start, kdTree, win):
@@ -546,8 +607,7 @@ def find_path(grid: list[list[Spot]], start: Spot, end: Spot, distance_to_end, d
                 if dis_obs_next == 0:
                     continue
                 row, col = int(next_point[0] / gap), int(next_point[1] / gap)
-                score = 150*(1.0 / dis_obs_next) + \
-                    distance_to_end[grid[row][col]]
+                score = 50*(1.0 / dis_obs_next) + distance_to_end[grid[row][col]]
                 if score < Min_score:
                     Min_score = score
                     next_point_max = next_point
@@ -574,7 +634,7 @@ def find_path(grid: list[list[Spot]], start: Spot, end: Spot, distance_to_end, d
                 break
         else:
             Min_score = 10000
-            next_point_max = None
+            next_point_max = None 
             for i in range(360):
                 next_point = int(current_end[0] + dis_obs_current_to_start * math.cos(math.radians(
                     i))), int(current_end[1] + dis_obs_current_to_start * math.sin(math.radians(i)))
@@ -585,8 +645,7 @@ def find_path(grid: list[list[Spot]], start: Spot, end: Spot, distance_to_end, d
                 if dis_obs_next == 0:
                     continue
                 row, col = int(next_point[0] / gap), int(next_point[1] / gap)
-                score = 150*(1.0 / dis_obs_next) + \
-                    distance_to_start[grid[row][col]]
+                score = 50*(1.0 / dis_obs_next) + distance_to_start[grid[row][col]]
                 if score < Min_score:
                     Min_score = score
                     next_point_max = next_point
@@ -595,7 +654,8 @@ def find_path(grid: list[list[Spot]], start: Spot, end: Spot, distance_to_end, d
             pygame.display.update()
             current_end = next_point_max
             path_to_start.append(current_end)
-    print("path_to_end: ", path_to_end)
+    if len(path_to_end) < 3:
+        return path_to_end
     point_control = np.array(path_to_end)
     x = point_control[:, 0]
     y = point_control[:, 1]
@@ -614,7 +674,6 @@ def find_path(grid: list[list[Spot]], start: Spot, end: Spot, distance_to_end, d
 
 
 def find_move_path(robot: Robot, draw, grid, start, end, win):
-    global time_global
     global IsRePlan
 
     fixEndPoint = end.get_real_pos()
@@ -623,88 +682,55 @@ def find_move_path(robot: Robot, draw, grid, start, end, win):
     make_barrier_edge(grid, win)
     obstacle = [spot.get_real_pos()
                 for row in grid for spot in row if spot.is_barrier()]
-    kdTree = KDTree(obstacle)
+    robot.KDTREE = KDTree(obstacle)
+
     robot.pathRb = find_path(grid=grid, start=start, end=end, win=win,
-                             distance_to_end=distance_to_end, distance_to_start=distance_to_start, kdTree=kdTree)
+                             distance_to_end=distance_to_end, distance_to_start=distance_to_start, kdTree=robot.KDTREE)
     kdTree_path = KDTree(robot.pathRb)
-    pygame.time.delay(5000)
+    pygame.time.delay(2000)
     # print(robot.pathRb.pop(0))
-    time_global = 0
-    lasttime = pygame.time.get_ticks()
-    delta_t = 0.1
 
     # pop the point that is too close to the robot
     index = 0
     while dist_real((robot.x, robot.y), robot.pathRb[index]) < 50:
         index += 1
-    print("index: ", index)
-    print("distance: ", dist_real((robot.x, robot.y), robot.pathRb[index]))
+    # print("index: ", index)
+    # print("distance: ", dist_real((robot.x, robot.y), robot.pathRb[index]))
     total_dt = 0
-    first_index = index
     while dist_real((robot.x, robot.y), fixEndPoint) > 20:
-        if IsRePlan:
-            index = 0
-            IsRePlan = False
+
         target = robot.pathRb[index]  # target is float
+        # print("target: ", target)
+        # print("distance: ", dist_real((robot.x, robot.y), target))
         index += 1
-        # target = end.get_real_pos()
-        obstacle_dist_pre = 0
         while dist_real((robot.x, robot.y), target) > 20:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
 
             drawNotUpDate(win, grid, ROWS, WIDTH)
-            if (total_dt > 0.5):
-                # update dynamic obstacles
-                for obs in dynamic_obstacles:
-                    # check if obstacle will move out of bounds
-                    obs.move(grid)
-                total_dt = 0
-            # mini_dis_to_target, target_min = kdTree_path.query([(robot.x, robot.y)])
-            # target_min = target_min[0][0]
-            # dis_to_current_target = dist_real((robot.x, robot.y), target)
-            # if target != robot.pathRb[target_min] and mini_dis_to_target < dis_to_current_target and target_min > index:
-            #     target = robot.pathRb[target_min]
-            #     index = target_min + 1
-
-            # pygame.display.update()
-            # robot.dt = (pygame.time.get_ticks() - lasttime) / 1000
-            # total_dt += robot.dt
-            # time_global += robot.dt
-            # lasttime = pygame.time.get_ticks()
-            # robot.move()
-            # robot.draw(win)
-            # robot.trail((robot.x, robot.y), win, RED)
-            # pygame.display.update()
+            for obs in dynamic_obstacles:
+                obs.draw(win)
 
             # set_time = pygame.time.get_ticks()
-            check_point_time = pygame.time.get_ticks()
             next_pos, angle, obstacle_dist = robot.find_next_spot(
-                grid, target, win, distance_to_end, kdTree)
-            pygame.draw.line(win, RED, (int(robot.x), int(
-                robot.y)), (int(target[0]), int(target[1])), 5)
+                grid, target, win, distance_to_end, robot.KDTREE)
+            # pygame.draw.line(win, RED, (int(robot.x), int(
+            #     robot.y)), (int(target[0]), int(target[1])), 5)
             pygame.display.update()
-            delta_t = (pygame.time.get_ticks() - check_point_time)
 
             if next_pos:
-                # set_time = (pygame.time.get_ticks() - set_time) / 1000
-                # print("set time 1: ", set_time)
-                # set_time = pygame.time.get_ticks()
-                total_dt = robot.move_to(
+                robot.move_to(
                     angle, win, grid, target, total_dt, end)
-                # set_time = (pygame.time.get_ticks() - set_time) / 1000
-                # print("move time 2: ", set_time)
-
-                # chage velocity
-                # delta_u = 0
-                # if obstacle_dist_pre != 0:
-                #     delta_u = int(obstacle_dist - obstacle_dist_pre)*0.1
-                #     print("delta_u: ", delta_u)
-                # obstacle_dist_pre = obstacle_dist
-                # robot.chage_linear_velocity(delta_u)
+                if IsRePlan:
+                    index = 0
+                    while dist_real((robot.x, robot.y), robot.pathRb[index]) < 40:
+                        index += 1
+                    IsRePlan = False
+                    # print(robot.pathRb)
+                    break
             else:
-                total_dt = robot.move_back(grid, win, total_dt)
+                robot.move_back(grid, win, total_dt)
 
     return True
 
@@ -738,11 +764,10 @@ def load_dynamic_obstacles(file_name):
     with open(file_name, 'r') as f:
         for line in f:
             # parse obstacle position and velocity from file
-            x, y, vx, vy = map(int, line.strip().replace(
-                '[', '').replace(']', '').split(','))
+            x, y, d, theta, veloc = map(float, line.strip().split(','))
 
             # create dynamic obstacle with given velocity and position
-            obs = DynamicObstacle(x, y, [vx, vy])
+            obs = DynamicObstacle(x, y, d, theta, veloc)
 
             # add obstacle to the list
             dynamic_obstacles.append(obs)
@@ -757,6 +782,9 @@ def make_grid(rows, width):
         for j in range(rows):
             spot = Spot(i, j, gap, rows)
             grid[i].append(spot)
+    # print grid shape
+
+    print(grid[1].__len__())
 
     return grid
 
@@ -808,6 +836,7 @@ time_replan = 0
 def main(win, width):
     global IsRePlan
     global dynamic_obstacles
+    global time_replan
     pygame.init()
     grid = make_grid(ROWS, width)
     start = None

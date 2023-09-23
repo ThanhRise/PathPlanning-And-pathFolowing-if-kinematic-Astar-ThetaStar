@@ -5,5 +5,8 @@ ref
 
 # images
 image
-.jpg
-.png
+*.jpg
+*.png
+history
+__pycache__
+*.pyc
