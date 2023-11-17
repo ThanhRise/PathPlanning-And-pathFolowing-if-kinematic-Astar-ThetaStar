@@ -11,7 +11,7 @@ from sensor import Sensor
 # threading
 import threading
 from threading import Thread
-from algorithm import *
+# from algorithm import *
 import time
 import copy
 
@@ -22,13 +22,6 @@ dynamicObstacles = None
 sensor = None
 run = True
 planed = False
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-# NOTE:
-# KDTree: không có thư viẹn có thể insert thêm node
-# NHiều trường hợp không replan đuọc
-# Thời gian replan quá lâu
-# nếu replan mà vị trí robot sẽ trở thành chướng ngại vật thì sẽ gặp lỗi
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
 def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_thread, display_thread): 
@@ -53,85 +46,89 @@ def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_
     
     END_pos = (MAP.end.row, MAP.end.col)
     robot.detect_obstacle(MAP)   
-    robot.distance_to_end = BFS(robot.grid_in_vison_robot, END_pos)
 
+    index = 0
 
     planed = True  
     print("robot.pathRb : OKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
 
-    robot.target = fixEndPoint
     last_time = pygame.time.get_ticks()
     last_time_back = None
     time_backwards = 0
-    while Utils.distance_real((robot.x, robot.y), robot.target) > 1:
+    while Utils.distance_real((robot.x, robot.y), fixEndPoint) > 5:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
                 print("Quit")
                 pygame.quit()
                 return
-            
-        if pygame.time.get_ticks() - last_time > 300:
-            robot.detect_obstacle(MAP)
+               
+        robot.target = robot.pathRb[index]
+        index = index + 1
 
-            delta_time = pygame.time.get_ticks()
-            if robot.next_pos_move != None:
+        while Utils.distance_real((robot.x, robot.y), robot.target) > 30:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    run = False
+                    print("Quit")
+                    pygame.quit()
+                    return
 
-                next_pos_temp = int(robot.next_pos_move[0]/MAP.GAP), int(robot.next_pos_move[1]/MAP.GAP)
-                robot.distance_to_end = BFS(robot.grid_in_vison_robot, END_pos)
-                # robot.distance_to_end =  Partial_BFS(robot.grid_in_vison_robot, next_pos_temp, END_pos)
-            else:
-                robot.u = 0
-                # time.sleep(0.5)
-            last_time = pygame.time.get_ticks()
+                
+            if pygame.time.get_ticks() - last_time > 300:
+                robot.detect_obstacle(MAP)
+                index = 0
+                robot.target = robot.pathRb[index]
+                last_time = pygame.time.get_ticks()
 
-        if robot.backwards == True and pygame.time.get_ticks() - last_time_back >= time_backwards:
-            if robot.theta > 0 and robot.theta < math.pi:
-                robot.theta = robot.theta - math.pi
-            elif robot.theta < 0 and robot.theta > -math.pi:
-                robot.theta = robot.theta + math.pi
-            elif robot.theta > math.pi:
-                robot.theta = robot.theta - math.pi
-            elif robot.theta < -math.pi:
-                robot.theta = robot.theta + math.pi
-            robot.backwards = False
+            if robot.backwards == True and pygame.time.get_ticks() - last_time_back >= time_backwards:
+                if robot.theta > 0 and robot.theta < math.pi:
+                    robot.theta = robot.theta - math.pi
+                elif robot.theta < 0 and robot.theta > -math.pi:
+                    robot.theta = robot.theta + math.pi
+                elif robot.theta > math.pi:
+                    robot.theta = robot.theta - math.pi
+                elif robot.theta < -math.pi:
+                    robot.theta = robot.theta + math.pi
+                robot.backwards = False
 
-        robot.next_pos_move, robot.next_angle_move, _ = robot.find_next_spot(MAP)  
+            robot.next_pos_move, robot.next_angle_move, _ = robot.find_next_spot(MAP)  
 
-        if robot.next_pos_move == None or robot.next_angle_move == None:
-            if robot.theta > 0 and robot.theta < math.pi:
-                robot.theta = robot.theta - math.pi
-            elif robot.theta < 0 and robot.theta > -math.pi:
-                robot.theta = robot.theta + math.pi
-            elif robot.theta > math.pi:
-                robot.theta = robot.theta - math.pi
-            elif robot.theta < -math.pi:
-                robot.theta = robot.theta + math.pi
-            robot.backwards = True
-            robot.next_pos_move, robot.next_angle_move, _ = robot.find_next_spot(MAP) 
-            last_time_back = pygame.time.get_ticks()
-            time_backwards = robot.time_step
-        # ==================================================================================================
-        if planed == True:
-            print("Start moving")
-            robot_move_thread.start()
-            print("Start dynamic obstacle")
-            dynamic_obstacle_move_thread.start()
-            print("Start sensor")
-            sensor_detect_thread.start()
-            print("Start display")
-            display_thread.start()
-            planed = False
 
-        # ==================================================================================================
+            if robot.next_pos_move == None or robot.next_angle_move == None:
+                if robot.theta > 0 and robot.theta < math.pi:
+                    robot.theta = robot.theta - math.pi
+                elif robot.theta < 0 and robot.theta > -math.pi:
+                    robot.theta = robot.theta + math.pi
+                elif robot.theta > math.pi:
+                    robot.theta = robot.theta - math.pi
+                elif robot.theta < -math.pi:
+                    robot.theta = robot.theta + math.pi
+                robot.backwards = True
+                robot.next_pos_move, robot.next_angle_move, _ = robot.find_next_spot(MAP, True)
+                last_time_back = pygame.time.get_ticks()
+                time_backwards = robot.time_step
+            # ==================================================================================================
+            if planed == True:
+                print("Start moving")
+                robot_move_thread.start()
+                print("Start dynamic obstacle")
+                dynamic_obstacle_move_thread.start()
+                print("Start sensor")
+                sensor_detect_thread.start()
+                print("Start display")
+                display_thread.start()
+                planed = False
 
-   
+            # ==================================================================================================
 
-    robot.u = 0
-    # while Utils.distance_real((robot.x, robot.y), fixEndPoint) > 1:
-    #     robot.next_pos_move, robot.next_angle_move, _ = robot.find_next_spot(
-    #         robot.grid_in_vison_robot, fixEndPoint, MAP.WIN, robot.distance_to_end, robot.KDTree)
-    #     # next_pos_temp = robot.next_pos_move
+    
+
+        robot.u = 0
+        # while Utils.distance_real((robot.x, robot.y), fixEndPoint) > 1:
+        #     robot.next_pos_move, robot.next_angle_move, _ = robot.find_next_spot(
+        #         robot.grid_in_vison_robot, fixEndPoint, MAP.WIN, robot.distance_to_end, robot.KDTree)
+        #     # next_pos_temp = robot.next_pos_move
 
     run = False
 
@@ -179,11 +176,17 @@ def display():
     while run:
         
         MAP.draw_not_update(robot.grid_in_vison_robot)
+        for segment in robot.segments:    
+            p1, p2 = segment
+            pygame.draw.line(MAP.WIN, Constant.YELLOW, p1, p2, 3)
         pygame.draw.circle(MAP.WIN, Constant.RED, (robot.x, robot.y), 100, 2)
         for obstacle in dynamicObstacles:
             obstacle.draw(MAP.WIN)
         for location in range(len(robot.pathRb) - 1):
-            pygame.draw.line(MAP.WIN, Constant.BLUE, robot.pathRb[location], robot.pathRb[location + 1], 2)
+            if location < len(robot.pathRb) - 1:
+                pygame.draw.line(MAP.WIN, Constant.BLUE, robot.pathRb[location], robot.pathRb[location + 1], 2)
+            else: 
+                break
         pygame.draw.circle(MAP.WIN, Constant.RED, robot.target, 5)
         robot.rotated = pygame.transform.rotozoom(robot.img, math.degrees(-robot.theta), 1)
         robot.rect = robot.rotated.get_rect(center=(robot.x, robot.y))

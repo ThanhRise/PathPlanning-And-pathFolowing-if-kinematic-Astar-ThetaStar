@@ -10,3 +10,9 @@ image
 history
 __pycache__
 *.pyc
+
+# data
+*.csv
+
+# test
+test

@@ -304,13 +304,13 @@ def dubins_path_length(Waypoint1, Waypoint2, vel = 8, phi_lim = 12):
 def main():
     pt1 = Waypoint(0, 0, 0)
     pt2 = Waypoint(100, 0, 180)
-    pt3 = Waypoint(100, 100, 180)
+    pt3 = Waypoint(0, 30, 60)
     pt4 = Waypoint(0, 100, 180)
-    Wptz = [pt3, pt1]
+    Wptz = [pt1, pt3]
     # Run the code
     i = 0
     while i < len(Wptz)-1:
-        param = calcDubinsPath(Wptz[i], Wptz[i+1], 16, 30)
+        param = calcDubinsPath(Wptz[i], Wptz[i+1], 12, 60)
         path = dubins_traj(param, 1)
         #  rounded to the nearest integer
         print(path[:, :2])

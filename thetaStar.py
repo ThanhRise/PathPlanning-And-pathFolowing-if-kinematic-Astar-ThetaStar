@@ -401,18 +401,20 @@ def main(win, width):
             elif pygame.mouse.get_pressed()[2]:  # RIGHT
                 pos = pygame.mouse.get_pos()
                 row, col = get_clicked_pos(pos, ROWS, width)
-                spot = grid[row][col]
+                spot = grid[row][col] 
                 spot.reset()
                 if spot == start:
                     start = None
                 elif spot == end:
                     end = None
 
-            if event.type == pygame.KEYDOWN:
+            if event.type == pygame.KEYDOWN:   
                 if event.key == pygame.K_SPACE and start and end:
                     for row in grid:
                         for spot in row:    
-                            spot.update_neighbors(grid)
+                            spot.update_neighbors(grid) 
+
+                    write_map("map.txt", grid, "map7")
 
                     MARK = algorithm(lambda: draw(win, grid, ROWS, width),
                                      grid, start, end, win)

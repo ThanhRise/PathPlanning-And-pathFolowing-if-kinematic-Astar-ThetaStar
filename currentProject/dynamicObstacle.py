@@ -14,7 +14,7 @@ class DynamicObstacle:
 
     def move(self, grid, dt):
         x = self.x + self.velocity * math.cos(self.theta) * dt
-        y = self.y + self.velocity * math.sin(self.theta)  * dt
+        y = self.y + self.velocity * math.sin(self.theta) * dt
         if x < 0:
             x = - x
             self.theta = math.pi - self.theta
@@ -30,28 +30,42 @@ class DynamicObstacle:
         # change theta when x, y is on the barrier
         if self.theta < 0:
             self.theta = self.theta + math.pi * 2
+        if self.theta >= math.pi * 2:
+            self.theta = self.theta - math.pi * 2
         theta = self.theta
-        # print('x: ', x, 'x / 16: ', int(x / 16))
-        if grid[int(x / 16)][int(y / 16)].is_barrier():
-            if self.theta >= 0 and self.theta <= math.pi / 2:
-                theta = - self.theta
-                if grid[int((self.x + self.velocity * math.cos(theta) * dt)/16)][int(y / 16)].is_barrier():
-                    theta = math.pi - self.theta
-            
-            if self.theta >= math.pi / 2 and self.theta <= math.pi:
+        
+        if grid[int(x / 16)][int(y / 16)].is_barrier() or grid[int((x + self.d) / 16)][int(y / 16)].is_barrier() or grid[int(x / 16)][int((y + self.d) / 16)].is_barrier() or grid[int((x + self.d) / 16)][int((y + self.d) / 16)].is_barrier() \
+            or grid[int((x - self.d)/ 16)][int(y / 16)].is_barrier() or grid[int(x / 16)][int((y - self.d) / 16)].is_barrier() or grid[int((x - self.d) / 16)][int((y - self.d) / 16)].is_barrier() or grid[int((x + self.d) / 16)][int((y - self.d) / 16)].is_barrier() or grid[int((x - self.d) / 16)][int((y + self.d) / 16)].is_barrier():
+            if self.theta > 0 and self.theta < math.pi / 2:
                 theta = math.pi - self.theta
-                if grid[int(x / 16)][int((self.y + self.velocity * math.sin(theta)  * dt)/16)].is_barrier():
-                    theta = - self.theta
+                if grid[int(x /16)][int((y+ self.d) / 16)].is_barrier() or grid[int((x - self.d)/16)][int((y + self.d) / 16)].is_barrier() :
+                # if grid[int(x /16)][int((y+ self.d) / 16)].is_barrier():
+                    theta =  - self.theta
             
-            if self.theta >= math.pi and self.theta <= math.pi * 3 / 2:
-                theta = - self.theta
-                if grid[int(x / 16)][int((self.y + self.velocity * math.sin(theta)* dt)/16)].is_barrier():
-                    theta = math.pi - self.theta
+            if self.theta > math.pi / 2 and self.theta < math.pi:
+                theta = math.pi - self.theta 
+                if grid[int(x / 16)][int((y + self.d)/16)].is_barrier() or grid[int((x + self.d) / 16)][int((y + self.d)/16)].is_barrier():
+                # if grid[int(x /16)][int((y+ self.d) / 16)].is_barrier():
+                    theta =  - self.theta   
+            
+            if self.theta > math.pi and self.theta < math.pi * 3 / 2:
+                theta = math.pi - self.theta
+                if grid[int((x) / 16)][int((y - self.d)/16)].is_barrier() or grid[int((x + self.d) / 16)][int((y - self.d)/16)].is_barrier():
+                # if grid[int((x) / 16)][int((y - self.d)/16)].is_barrier():
+                    theta = - self.theta
                 
-            if self.theta > math.pi * 3 / 2 and self.theta <= math.pi * 2:
+            if self.theta > math.pi * 3 / 2 and self.theta < math.pi * 2:
+                theta = math.pi - self.theta
+                if grid[int((x)/16)][int((y- self.d) / 16)].is_barrier() or grid[int((x - self.d)/16)][int((y -self.d) / 16)].is_barrier():
+                # if grid[int((x) / 16)][int((y - self.d)/16)].is_barrier():
+                    theta = - self.theta
+
+            if self.theta == math.pi or self.theta == 0:
+                theta = math.pi - self.theta
+
+            if self.theta == math.pi / 2 or self.theta == math.pi * 3 / 2:
                 theta = - self.theta
-                if grid[int((self.x + self.velocity * math.cos(theta) * dt)/16)][int(y / 16)].is_barrier():
-                    theta = math.pi - self.theta
+
         if self.theta == theta:
             self.x = x
             self.y = y
@@ -61,4 +75,4 @@ class DynamicObstacle:
             self.y = self.y + self.velocity * math.sin(self.theta) * dt
 
     def draw(self, win):
-        pygame.draw.circle(win, Constant.YELLOW, (int(self.x), int(self.y)), self.d, 100)
+        pygame.draw.circle(win, Constant.PURPLE, (int(self.x), int(self.y)), self.d, 100)

@@ -17,6 +17,8 @@ class Constant:
     # MAPFILE
     MAPFILE = "C:/Users/admin/LearningIT/20222/Project2/MRPP/currentProject/MAP.txt"
     DYNOBSTACLEFILE = "C:/Users/admin/LearningIT/20222/Project2/MRPP/currentProject/dynamicObstacles.txt"
+    COLLISIONFILE = "C:/Users/admin/LearningIT/20222/Project2/MRPP/currentProject/log_collison.txt"
+    INFO_PATH_FILE = "C:/Users/admin/LearningIT/20222/Project2/MRPP/currentProject/log_info_path.csv"
 
     OBSTACLE_DETECTION_DISTANCE = 100
     OBSTACLE_REPLANNING_DISTANCE = 150

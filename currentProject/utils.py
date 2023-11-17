@@ -74,4 +74,77 @@ class Utils:
                 # add obstacle to the list
                 dynamic_obstacles.append(obs)
         return dynamic_obstacles
+    
+    def log_collision(file_name, time, map_name, robot, dynamic_obstacles):
+        with open(file_name, 'a') as f:
+            f.write(f'{time},{map_name},{robot.x},{robot.y},{robot.theta}')
+            for obs in dynamic_obstacles:
+                f.write(f',{obs.x},{obs.y},{obs.d},{obs.theta},{obs.velocity}')
+            f.write('\n')
 
+    def log_info_path(file_name, map_name, len_path, time_move, safety_score, num_collision):
+        with open(file_name, 'a') as f:
+            f.write(f'{map_name},{len_path},{time_move},{safety_score},{num_collision}\n')
+
+    def line_of_sight(p1, p2, grid):
+        # print(p1,p2)
+        x1, y1 = p1
+        x2, y2 = p2
+        dx = x2 - x1
+        dy = y2 - y1
+        f = 0
+
+        if dy < 0:
+            dy = -dy
+            sy = -1
+        else:
+            sy = 1
+        if dx < 0:
+            dx = -dx
+            sx = -1
+        else:
+            sx = 1
+
+        # print(x1 + ((sx - 1) // 2))
+        # print(y1+1)
+        if dx >= dy:
+            while x1 != x2:
+                f = f + dy
+                if f >= dx:
+                    if grid[x1 + ((sx - 1) // 2)][y1 + ((sy - 1) // 2)].is_barrier() or grid[x1 + ((sx - 1) // 2)][y1 + ((sy - 1) // 2)].is_dynamic_obs():
+                        return False
+                    y1 = y1 + sy
+                    f = f - dx
+
+                if f != 0 and grid[x1 + ((sx - 1) // 2)][y1 + ((sy - 1) // 2)].is_barrier() or grid[x1 + ((sx - 1) // 2)][y1 + ((sy - 1) // 2)].is_dynamic_obs():
+                    return False
+
+                # if (dy == 0 and grid[x1 + ((sx - 1) // 2)][y1].is_barrier()) or (dy == 0 and grid[x1 + ((sx - 1) // 2)][y1 + 1].is_barrier()) or \
+                #         (dy == 0 and grid[x1 + ((sx - 1) // 2)][y1].is_barrier()) or (dy == 0 and grid[x1 + ((sx - 1) // 2)][y1 - 1].is_barrier()):
+                #     return False
+                
+                if (dy == 0 and (grid[x1 + ((sx - 1) // 2)][y1].is_barrier() or grid[x1 + ((sx - 1) // 2)][y1].is_dynamic_obs())) and (grid[x1 + ((sx - 1) // 2)][y1 - 1].is_barrier() or grid[x1 + ((sx - 1) // 2)][y1 - 1].is_dynamic_obs()):
+                    return False
+
+                x1 = x1 + sx
+        else:
+            while y1 != y2:
+                f = f + dx
+                if f >= dy:
+                    if grid[x1 + ((sx - 1) // 2)][y1 + ((sy - 1) // 2)].is_barrier() or grid[x1 + ((sx - 1) // 2)][y1 + ((sy - 1) // 2)].is_dynamic_obs():
+                        return False
+                    x1 = x1 + sx
+                    f = f - dy
+
+                if f != 0 and grid[x1 + ((sx - 1) // 2)][y1 + ((sy - 1) // 2)].is_barrier() or grid[x1 + ((sx - 1) // 2)][y1 + ((sy - 1) // 2)].is_dynamic_obs():
+                    return False
+
+                # if (dx == 0 and grid[x1][y1 + ((sy - 1) // 2)].is_barrier()) or (dx == 0 and grid[x1 + 1][y1 + ((sy - 1) // 2)].is_barrier()) or \
+                #    (dx == 0 and grid[x1][y1 + ((sy - 1) // 2)].is_barrier()) or (dx == 0 and grid[x1 - 1][y1 + ((sy - 1) // 2)].is_barrier()):
+                #     return False
+                if (dx == 0 and (grid[x1][y1 + ((sy - 1) // 2)].is_barrier() or grid[x1][y1 + ((sy - 1) // 2)].is_dynamic_obs())) and (grid[x1 - 1][y1 + ((sy - 1) // 2)].is_barrier() or grid[x1 - 1][y1 + ((sy - 1) // 2)].is_dynamic_obs()):
+                    return False
+
+                y1 = y1 + sy
+
+        return True

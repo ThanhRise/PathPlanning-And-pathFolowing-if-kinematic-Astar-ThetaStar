@@ -11,6 +11,7 @@ class Environment:
         self.ROWS = ROWS
         self.GAP = self.WIDTH // self.ROWS
         self.WIN = pygame.display.set_mode((self.WIDTH, self.WIDTH))
+        self.MAP_NAME = None
         pygame.display.set_caption("Kinematic model with KD-Tree")
         self.grid = []
         for i in range(self.ROWS):
@@ -18,6 +19,8 @@ class Environment:
             for j in range(self.ROWS):
                 spot = Spot(i, j, self.GAP, self.ROWS)
                 self.grid[i].append(spot)
+        
+        self.voronoi = None
         self.start = None
         self.end = None
         self.path = []
@@ -28,11 +31,11 @@ class Environment:
 
 
     def draw_grid(self):
-        # gap = self.GAP
+        gap = self.GAP
         # for i in range(self.ROWS):
-        #     pygame.draw.line(self.WIN, Utils.GREY(),(0, i * gap), (self.WIDTH, i * gap))
+        #     pygame.draw.line(self.WIN, Constant.GREY,(0, i * gap), (self.WIDTH, i * gap))
         #     for j in range(self.ROWS):
-        #         pygame.draw.line(self.WIN, Utils.GREY(),(j * gap, 0), (j * gap, self.WIDTH))
+        #         pygame.draw.line(self.WIN, Constant.GREY,(j * gap, 0), (j * gap, self.WIDTH))
         pass
 
     def draw(self):
@@ -57,10 +60,12 @@ class Environment:
                     self.grid[i][j].make_barrier()
                     self.obstacles.append(self.grid[i][j])
     
-    def draw_not_update(self):
+    def draw_not_update(self, grid = None):
+        if grid == None:
+            grid = self.grid
         self.WIN.fill(Constant.WHITE)
         for row in range(self.ROWS):
             for spot in range(self.ROWS):
-                self.grid[row][spot].draw(self.WIN)
+                grid[row][spot].draw(self.WIN)
         self.draw_grid()
     
