@@ -16,6 +16,9 @@ from dijkstar import Graph, find_path
 # defaultdict
 from collections import defaultdict
 import copy
+from sklearn import svm
+from matplotlib import pyplot as plt
+
 
 def BFS(grid, end_pos):
     # update the neighbor_distance of each node
@@ -254,8 +257,8 @@ def find_path_one_way(robot, MAP: Environment, start: Spot):
         # pygame.display.update()
         current_start = next_point_max
         # print("current_start: ", current_start)
-        pygame.draw.circle(MAP.WIN, Constant.GREY, (int(current_start[0]), int(current_start[1])), int(dis_obs_current_to_start), 10)
-        pygame.display.update()
+        # pygame.draw.circle(MAP.WIN, Constant.GREY, (int(current_start[0]), int(current_start[1])), int(dis_obs_current_to_start), 10)
+        # pygame.display.update()
         path_to_end.append(current_start)
 
         if Utils.distance_real(current_start, current_end) < 5:
@@ -267,7 +270,7 @@ def find_path_one_way(robot, MAP: Environment, start: Spot):
     y = point_control[:, 1]
     k = 3
     tck, u = interpolate.splprep([x, y], k=k)
-    u_new = np.linspace(u.min(), u.max(), 3*Utils.distance_spot((start.row, start.col), (MAP.end.row, MAP.end.col)))
+    u_new = np.linspace(u.min(), u.max(), 2*Utils.distance_spot((start.row, start.col), (MAP.end.row, MAP.end.col)))
     x_bspline, y_bspline = interpolate.splev(u_new, tck)
 
     B_spline = list(zip(x_bspline, y_bspline))
@@ -355,7 +358,21 @@ def replan(robot, list_obstacles, MAP):
 
     print("KDTREE OK")
     # robot.pathRb = find_path(robot, MAP, start_pos_current)
-    robot.pathRb = find_path_with_kinematic(robot, MAP, start_pos_current)
+
+    index = 0
+    end_pos_current = None
+    for i in range(robot.index_path, len(robot.pathRb)):
+        if Utils.distance_real((robot.pathRb[i][0], robot.pathRb[i][1]), (robot.x, robot.y)) > 200:
+            end_pos_current = MAP.grid[int(robot.pathRb[i][0] // MAP.GAP)][int(robot.pathRb[i][1] // MAP.GAP)]
+            index = i
+            break
+    path = robot.pathRb[index:] 
+
+    if end_pos_current is not None:
+        path_replan = find_path_with_kinematic(robot, MAP, start_pos_current, end_pos_current)
+        robot.pathRb = path_replan + path
+    else:
+        robot.pathRb = find_path_with_kinematic(robot, MAP, start_pos_current, MAP.end)
     # robot.pathRb = find_path_two_KDtree(robot, MAP, start_pos_current, dynamicKDTree)
 
     # for spot in restore_grid:
@@ -363,7 +380,7 @@ def replan(robot, list_obstacles, MAP):
     return robot.pathRb, robot.KDTree, pygame.time.get_ticks()
 
 
-def find_path_with_kinematic(robot, MAP, start_pos_current, angleEnd = 180):
+def find_path_with_kinematic(robot, MAP, start_pos_current, end_pos_current):
     PATH = []
     one_degree = math.pi / 180
     angle = []
@@ -375,32 +392,40 @@ def find_path_with_kinematic(robot, MAP, start_pos_current, angleEnd = 180):
     theta_current = robot.theta
     # print("theta_current: ", theta_current)
     PATH.append((x_current, y_current))
-    while Utils.distance_real((x_current, y_current), MAP.end.get_real_pos(MAP.GAP)) > 100:
+    while Utils.distance_real((x_current, y_current), end_pos_current.get_real_pos(MAP.GAP)) > 10:
         min_heuristic = 10000
         maxStep = 16
+        step = 4
         x_next = 0
         y_next = 0
         theta_next = 0
-        for i in range(len(angle)):
-            for step in range(1, maxStep, 5):
-                x_temp = x_current + (step*2 + 8) * math.cos(theta_current + angle[i])
-                y_temp = y_current + (step*2 + 8) * math.sin(theta_current + angle[i])
-                # pygame.draw.line(MAP.WIN, (255, 0, 0), (x_current, y_current), (x_temp, y_temp), 2)
-                # pygame.display.update()
-
-                temp_spot = MAP.grid[int(x_temp // MAP.GAP)][int(y_temp // MAP.GAP)]
-                if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
-                    distance_to_end = robot.distance_to_end[temp_spot]
-                    distance_to_obs, _ = robot.KDTree.query([(int(x_temp), int(y_temp))])
-                    # print("angle: ", angle[i])
-                    # print("distance_to_end: ", distance_to_end)
-                    # print("distance_to_obs: ", (2000 - len(PATH) * 10) * (1.0 / distance_to_obs))
-                    heuristic = distance_to_end + 150 * (1.0 / distance_to_obs)
-                    if heuristic < min_heuristic:
-                        min_heuristic = heuristic
-                        x_next = x_temp
-                        y_next = y_temp
-                        theta_next = theta_current + angle[i] 
+        if end_pos_current == MAP.end:
+            for i in range(len(angle)):
+                    x_temp = x_current + (step*2 + 8) * math.cos(theta_current + angle[i])
+                    y_temp = y_current + (step*2 + 8) * math.sin(theta_current + angle[i])
+                    temp_spot = MAP.grid[int(x_temp // MAP.GAP)][int(y_temp // MAP.GAP)]
+                    if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
+                        distance_to_end = robot.distance_to_end[temp_spot]
+                        distance_to_obs, _ = robot.KDTree.query([(int(x_temp), int(y_temp))])
+                        heuristic = distance_to_end + 50 * (1.0 / distance_to_obs)
+                        if heuristic < min_heuristic:
+                            min_heuristic = heuristic
+                            x_next = x_temp
+                            y_next = y_temp
+                            theta_next = theta_current + angle[i] 
+        else:
+            for i in range(len(angle)):
+                    x_temp = x_current + (step*2 + 8) * math.cos(theta_current + angle[i])
+                    y_temp = y_current + (step*2 + 8) * math.sin(theta_current + angle[i])
+                    temp_spot = MAP.grid[int(x_temp // MAP.GAP)][int(y_temp // MAP.GAP)]
+                    if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
+                        distance_to_obs, _ = robot.KDTree.query([(int(x_temp), int(y_temp))])
+                        heuristic = Utils.distance_real((x_temp, y_temp), end_pos_current.get_real_pos(MAP.GAP)) + 1000 * (1.0 / distance_to_obs)
+                        if heuristic < min_heuristic:
+                            min_heuristic = heuristic
+                            x_next = x_temp
+                            y_next = y_temp
+                            theta_next = theta_current + angle[i] 
 
         if x_next == 0 and y_next == 0:
             print("Can't find path")
@@ -472,7 +497,7 @@ def find_path_with_kinematic(robot, MAP, start_pos_current, angleEnd = 180):
 
 
 
-    PATH.append(MAP.end.get_real_pos(MAP.GAP))
+    PATH.append(end_pos_current.get_real_pos(MAP.GAP))
     if len(PATH) <= 3:
         return PATH
     # use Bspline to smooth the path
@@ -481,9 +506,8 @@ def find_path_with_kinematic(robot, MAP, start_pos_current, angleEnd = 180):
     y = PATH[:, 1]
     k = 3
     tck, u = interpolate.splprep([x, y], k=k)
-    u_new = np.linspace(u.min(), u.max(), 3*Utils.distance_spot((start_pos_current.row, start_pos_current.col), (MAP.end.row, MAP.end.col)))
+    u_new = np.linspace(u.min(), u.max(), 3*Utils.distance_spot((start_pos_current.row, start_pos_current.col), (end_pos_current.row, end_pos_current.col)))
     x_bspline, y_bspline = interpolate.splev(u_new, tck)
-
     B_spline = list(zip(x_bspline, y_bspline))
     return B_spline    
 
@@ -652,6 +676,12 @@ def Astar_voronoi_find_path(robot, map , start_pos_current, segments ):
 
     # Astar
     start = start_pos_current.get_real_pos(map.GAP)
+    x_start = start[0] + 32 * math.cos(robot.theta)
+    y_start = start[1] + 32 * math.sin(robot.theta)
+    if map.grid[int(x_start // map.GAP)][int(y_start // map.GAP)].is_barrier():
+        x_start = x_start - 32 * math.cos(robot.theta)
+        y_start = y_start - 32 * math.sin(robot.theta)
+    start = (x_start, y_start)
     end = map.end.get_real_pos(map.GAP)
     start_pos = start_pos_current.get_pos()
     end_pos = map.end.get_pos()
@@ -782,14 +812,23 @@ def Astar_voronoi_kinematic(robot, MAP, start_pos_current, segments):
 
     x_current, y_current = robot.x, robot.y
     # PATH.append((x_current, y_current))
-    path.append(end)
+    
+    for i in range(len(path) - 1):
+        if Utils.distance_real(path[i], path[i+1]) > 100:
+            # insert point between path[i] and path[i+1]
+            x_temp = (path[i][0] + path[i+1][0]) / 2
+            y_temp = (path[i][1] + path[i+1][1]) / 2
+            path.insert(i+1, (x_temp, y_temp))
 
+    path.append(end)
+    if len(path) <= 3:
+        return path
     point_control = np.array(path)
     x = point_control[:, 0]
     y = point_control[:, 1]
     k = 3
     tck, u = interpolate.splprep([x, y], k=k)
-    u_new = np.linspace(u.min(), u.max(), 5 *Utils.distance_spot((start_pos), (MAP.end.row, MAP.end.col)))
+    u_new = np.linspace(u.min(), u.max(), Utils.distance_spot((start_pos), (MAP.end.row, MAP.end.col)))
     x_bspline, y_bspline = interpolate.splev(u_new, tck)
 
     B_spline = list(zip(x_bspline, y_bspline))
@@ -905,3 +944,396 @@ def replanV2(robot, list_obstacles, MAP):
     # for spot in restore_grid:
     #     spot.reset_to_prev_color()
     return robot.pathRb, robot.KDTree, pygame.time.get_ticks()
+
+def replan_svm(robot, list_obstacles, MAP):
+    step_horizontal = MAP.GAP / 2
+    print("replan")
+    restore_grid = []
+    for obs in list_obstacles:
+        if Utils.distance_real((obs.x, obs.y), (robot.x, robot.y)) < 150:
+            # print("angle", obs.theta, "atan2", math.atan2(obs.y - robot.y, obs.x - robot.x), "angle - atan2", obs.theta - math.atan2(obs.y - robot.y, obs.x - robot.x))
+            x_next = obs.x + 5 * obs.velocity * math.cos(obs.theta)
+            y_next = obs.y + 5 * obs.velocity * math.sin(obs.theta)
+            if x_next <= 8:
+                x_next = 9
+            if x_next >= 792:
+                x_next = 790
+            if y_next <= 8:
+                y_next = 9
+            if y_next >= 792:
+                y_next = 790
+
+            x_current = int(obs.x)
+            y_current = int(obs.y)
+            
+            x_next = int(x_next)
+            y_next = int(y_next)
+
+            while Utils.distance_real((x_current, y_current), (x_next, y_next)) > 15 and x_current < 800 and x_current > 0 and y_current < 800 and y_current > 0:
+         
+                if x_current + 8 >= 800 or x_current - 8 <= 0 or y_current + 8 >= 800 or y_current - 8 <= 0:
+                    break
+                
+                if Utils.distance_real((x_current, y_current), (robot.x, robot.y)) < 28 and math.fabs(obs.theta - robot.theta) > math.pi / 2*0.8 and math.fabs(obs.theta - robot.theta) < math.pi / 2*1.2:
+                    continue
+                temp_spot = MAP.grid[int(x_current // MAP.GAP)][int(y_current // MAP.GAP)]
+                if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
+                    restore_grid.append(temp_spot)
+                    MAP.grid[int(x_current // MAP.GAP)][int(y_current // MAP.GAP)].make_dynamic_obs()
+                temp_spot = MAP.grid[int((x_current + step_horizontal) // MAP.GAP)][int(y_current // MAP.GAP)]
+                if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
+                    restore_grid.append(temp_spot)
+                    MAP.grid[int((x_current + step_horizontal) // MAP.GAP)][int(y_current // MAP.GAP)].make_dynamic_obs()
+                temp_spot = MAP.grid[int(x_current // MAP.GAP)][int((y_current + step_horizontal) // MAP.GAP)]
+                if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
+                    restore_grid.append(temp_spot)
+                    MAP.grid[int(x_current // MAP.GAP)][int((y_current + step_horizontal) // MAP.GAP)].make_dynamic_obs()
+                temp_spot = MAP.grid[int((x_current + step_horizontal) // MAP.GAP)][int((y_current + step_horizontal) // MAP.GAP)]
+                if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
+                    restore_grid.append(temp_spot)
+                    MAP.grid[int((x_current + step_horizontal) // MAP.GAP)][int((y_current + step_horizontal) // MAP.GAP)].make_dynamic_obs()
+                temp_spot = MAP.grid[int((x_current - step_horizontal) // MAP.GAP)][int(y_current // MAP.GAP)]
+                if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
+                    restore_grid.append(temp_spot)
+                    MAP.grid[int((x_current - step_horizontal) // MAP.GAP)][int(y_current // MAP.GAP)].make_dynamic_obs()
+                temp_spot = MAP.grid[int(x_current // MAP.GAP)][int((y_current - step_horizontal) // MAP.GAP)]
+                if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
+                    restore_grid.append(temp_spot)
+                    MAP.grid[int(x_current // MAP.GAP)][int((y_current - step_horizontal) // MAP.GAP)].make_dynamic_obs()
+                temp_spot = MAP.grid[int((x_current - step_horizontal) // MAP.GAP)][int((y_current - step_horizontal) // MAP.GAP)]
+                if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
+                    restore_grid.append(temp_spot)
+                    MAP.grid[int((x_current - step_horizontal) // MAP.GAP)][int((y_current - step_horizontal) // MAP.GAP)].make_dynamic_obs()
+                temp_spot = MAP.grid[int((x_current + step_horizontal) // MAP.GAP)][int((y_current - step_horizontal) // MAP.GAP)]
+                if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
+                    restore_grid.append(temp_spot)
+                    MAP.grid[int((x_current + step_horizontal) // MAP.GAP)][int((y_current - step_horizontal) // MAP.GAP)].make_dynamic_obs()
+                temp_spot = MAP.grid[int((x_current - step_horizontal) // MAP.GAP)][int((y_current + step_horizontal) // MAP.GAP)]
+                if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
+                    restore_grid.append(temp_spot)
+                    MAP.grid[int((x_current - step_horizontal) // MAP.GAP)][int((y_current + step_horizontal) // MAP.GAP)].make_dynamic_obs()
+
+                x_current += 16 * math.cos(obs.theta)
+                y_current += 16 * math.sin(obs.theta)
+    
+    obstacle = [spot.get_real_pos(MAP.GAP) for row in MAP.grid for spot in row if (spot.is_barrier() or spot.is_dynamic_obs())]
+    robot.KDTree = KDTree(obstacle)
+
+    start_pos = MAP.grid[int(robot.x // MAP.GAP)][int(robot.y // MAP.GAP)]
+    path_svm, _, _ = SVM_path_planning(start_pos, MAP.end, MAP.grid, MAP.GAP)
+
+    # for spot in restore_grid:
+    #     spot.reset_to_prev_color()
+    return path_svm, robot.KDTree, pygame.time.get_ticks()
+
+def Astar_find_path_in_grid(start, end, grid):
+    def h(p1, p2):
+        x1, y1 = p1
+        x2, y2 = p2
+        return abs(x1 - x2) + abs(y1 - y2)
+
+    for row in grid:
+        for spot in row:
+            spot.update_neighbors_distance(grid)
+
+    path = []
+
+
+    count = 0
+    open_set = PriorityQueue()
+    open_set.put((0, count, start))
+    came_from = {}
+    g_score = {spot: float("inf") for row in grid for spot in row}
+    g_score[start] = 0
+    f_score = {spot: float("inf") for row in grid for spot in row}
+    f_score[start] = h(start.get_pos(), end.get_pos())
+
+    open_set_hash = {start}
+
+    while not open_set.empty():
+
+        current = open_set.get()[2]
+        open_set_hash.remove(current)
+
+        if current == end:
+            break
+
+        for neighbor, dist in current.neighbors_distance:
+            temp_g_score = g_score[current] + dist
+
+            if temp_g_score < g_score[neighbor]:
+                came_from[neighbor] = current
+                g_score[neighbor] = temp_g_score
+                f_score[neighbor] = temp_g_score + h(neighbor.get_pos(), end.get_pos())
+                if neighbor not in open_set_hash:
+                    count += 1
+                    open_set.put((f_score[neighbor], count, neighbor))
+                    open_set_hash.add(neighbor)
+    if current == end:
+        print("found path")
+    path.append(current)
+    while current != start:
+        current = came_from[current]
+        path.append(current)
+    # path.append(start)
+    path.reverse()
+    return path
+
+def SVM_path_planning(start, end, grid, gap):
+
+    path = Astar_find_path_in_grid(start, end, grid)
+    print('a* path done')
+    obs1 = []
+    obs2 = []
+    search = 4
+
+    for i in range(len(path) - 1):
+        x1, y1 = path[i].get_pos()
+        x2, y2 = path[i+1].get_pos()
+        x_delta = x2 - x1
+        y_delta = y2 - y1
+        if x_delta == 0:
+            if y_delta > 0:
+                flag = False
+                for j in range(1, search):
+                    if grid[x2+ j][y2].is_barrier() or grid[x2+ j][y2].is_dynamic_obs():
+                        obs1.append((x2+ j, y2))
+                        flag = True
+                        break
+                if not flag:
+                    obs1.append((x2+ search, y2))
+                flag = False
+                for j in range(1, search):
+                    if grid[x2- j][y2].is_barrier() or grid[x2- j][y2].is_dynamic_obs():
+                        obs2.append((x2- j, y2))
+                        flag = True
+                        break
+                if not flag:
+                    obs2.append((x2- search, y2))
+            else:
+                flag = False
+                for j in range(1, search):
+                    if grid[x2+ j][y2].is_barrier() or grid[x2+ j][y2].is_dynamic_obs():
+                        obs2.append((x2+ j, y2))
+                        flag = True
+                        break
+                if not flag:
+                    obs2.append((x2+ search, y2))
+                flag = False
+                for j in range(1, search):
+                    if grid[x2- j][y2].is_barrier() or grid[x2- j][y2].is_dynamic_obs():
+                        obs1.append((x2- j, y2))
+                        flag = True
+                        break
+                if not flag:
+                    obs1.append((x2- search, y2))
+        elif y_delta == 0:
+            if x_delta > 0:
+                flag = False
+                for j in range(1, search):
+                    if grid[x2][y2 - j].is_barrier() or grid[x2][y2 - j].is_dynamic_obs():
+                        obs1.append((x2, y2 - j))
+                        flag = True
+                        break
+                if not flag:
+                    obs1.append((x2, y2 - search))
+                flag = False
+                for j in range(1, search):
+                    if grid[x2][y2 + j].is_barrier() or grid[x2][y2 + j].is_dynamic_obs():
+                        obs2.append((x2, y2 + j))
+                        flag = True
+                        break
+                if not flag:
+                    obs2.append((x2, y2 + search))
+            else:
+                flag = False
+                for j in range(1, search):
+                    if grid[x2][y2 - j].is_barrier() or grid[x2][y2 - j].is_dynamic_obs():
+                        obs2.append((x2, y2 - j))
+                        flag = True
+                        break
+                if not flag:
+                    obs2.append((x2, y2 - search))
+                flag = False
+                for j in range(1, search):
+                    if grid[x2][y2 + j].is_barrier() or grid[x2][y2 + j].is_dynamic_obs():
+                        obs1.append((x2, y2 + j))
+                        flag = True
+                        break
+                if not flag:
+                    obs1.append((x2, y2 + search))
+        elif x_delta > 0 and y_delta > 0:
+            flag = False
+            for j in range(1, search):
+                if grid[x2 + j - 1][y2 - j].is_barrier() or grid[x2 + j - 1][y2 - j].is_dynamic_obs():
+                    obs1.append((x2 + j - 1, y2 - j))
+                    flag = True
+                    break
+            if not flag:
+                obs1.append((x2 + search - 1, y2 - search))
+            flag = False
+            for j in range(1, search):
+                if grid[x2 - j][y2 + j - 1].is_barrier() or grid[x2 - j][y2 + j - 1].is_dynamic_obs():
+                    obs2.append((x2 - j, y2 + j - 1))
+                    flag = True
+                    break
+            if not flag:
+                obs2.append((x2 - search, y2 + search - 1))
+        elif x_delta > 0 and y_delta < 0:
+            flag = False
+            for j in range(1, search):
+                if grid[x2 - j + 1][y2 - j].is_barrier() or grid[x2 - j + 1][y2 - j].is_dynamic_obs():
+                    obs1.append((x2 - j + 1, y2 - j))
+                    flag = True
+                    break
+            if not flag:
+                obs1.append((x2 - search + 1, y2 - search))
+            flag = False
+            for j in range(1, search):
+                if grid[x2 + j][y2 + j - 1].is_barrier() or grid[x2 + j][y2 + j - 1].is_dynamic_obs():
+                    obs2.append((x2 + j, y2 + j - 1))
+                    flag = True
+                    break
+            if not flag:
+                obs2.append((x2 + search, y2 + search - 1))
+        elif x_delta < 0 and y_delta > 0:
+            flag = False
+            for j in range(1, search):
+                if grid[x2 + j][y2 + j - 1].is_barrier() or grid[x2 + j][y2 + j - 1].is_dynamic_obs():
+                    obs1.append((x2 + j, y2 + j - 1))
+                    flag = True
+                    break
+            if not flag:
+                obs1.append((x2 + search, y2 + search - 1))
+            flag = False
+            for j in range(1, search):
+                if grid[x2 - j - 1][y2 - j].is_barrier() or grid[x2 - j - 1][y2 - j].is_dynamic_obs():
+                    obs2.append((x2 - j - 1, y2 - j))
+                    flag = True
+                    break
+            if not flag:
+                obs2.append((x2 - search - 1, y2 - search))
+        elif x_delta < 0 and y_delta < 0:
+            flag = False
+            for j in range(1, search):
+                if grid[x2 -j + 1][y2 + j].is_barrier() or grid[x2 -j + 1][y2 + j].is_dynamic_obs():
+                    obs1.append((x2 - j + 1, y2 + j))
+                    flag = True
+                    break
+            if not flag:
+                obs1.append((x2 - search + 1, y2 + search))
+            flag = False
+            for j in range(1, search):
+                if grid[x2 + j][y2 - j + 1].is_barrier() or grid[x2 + j][y2 - j + 1].is_dynamic_obs():
+                    obs2.append((x2 + j, y2 - j + 1))
+                    flag = True
+                    break
+            if not flag:
+                obs2.append((x2 + search, y2 - search + 1))
+
+
+    clf = svm.SVC(kernel='rbf', C=1000)
+    # TODO: find optimal prameters
+
+    obs1_train = []
+    obs2_train = []
+    for obs_pos in obs1:
+        obs1_train.append((obs_pos[0]*gap, obs_pos[1]*gap))
+    for obs_pos in obs2:
+        obs2_train.append((obs_pos[0]*gap, obs_pos[1]*gap))
+
+    # training data
+    X = []
+    y = []
+    for obs_pos in obs1_train:
+        X.append(obs_pos)
+        y.append(1)
+    for obs_pos in obs2_train:
+        X.append(obs_pos)
+        y.append(2)
+    clf.fit(X, y)
+
+    # plot the hyperplane
+    # create grid to evaluate model
+    # generate grid along first two dimensions followed by path
+    x_min = min([spot.get_real_pos(gap)[0] for spot in path])
+    x_max = max([spot.get_real_pos(gap)[0] for spot in path])
+    y_min = min([spot.get_real_pos(gap)[1] for spot in path])
+    y_max = max([spot.get_real_pos(gap)[1] for spot in path])
+    xx = np.linspace(x_min, x_max, 200)
+    yy = np.linspace(y_min, y_max, 200)
+    
+    # add start point and end point to xx, yy
+    start_pos = start.get_real_pos(gap)
+    end_pos = end.get_real_pos(gap)
+
+
+    # YY, XX = np.meshgrid(yy, xx)
+    # xy = np.vstack([XX.ravel(), YY.ravel()]).T
+    # Z = clf.decision_function(xy).reshape(XX.shape)
+    # print('Z: ', Z.shape)
+    
+    # plt.gca().invert_yaxis()
+
+    # plt.contour(XX, YY, Z, colors='k', levels=[-1, 0, 1], alpha=0.5,
+    #         linestyles=['--', '-', '--'])
+    # # plot support vectors
+    # plt.scatter(clf.support_vectors_[:, 0], clf.support_vectors_[:, 1], s=100,
+    #         linewidth=1, facecolors='none', edgecolors='k')
+    # plt.show()
+    # x = []
+    # y = []
+    # for i in range(XX.shape[0]):
+    #     for j in range(XX.shape[1]):
+    #         if abs(Z[i][j]) < 0.01:
+    #             x.append(XX[i][j])
+    #             y.append(YY[i][j])
+    # path_svm = []
+
+    # # find nearest start point
+    # xxx = np.where(xx == start_pos[0])
+    # yyy = np.where(yy == start_pos[1])
+    # path_svm.append((xx[xxx[0][0]], yy[yyy[0][0]]))
+    # current = xxx[0][0]
+    # i = current + 1
+    # while(i < len(x)):
+    #     if Utils.distance_real((x[current], y[current]), (x[i], y[i])) < 200:
+    #         path_svm.append((x[i], y[i]))
+    #         current =  i
+
+    angle = []
+    for i in range(0, 120, 10):
+        angle.append(i * math.pi / 180)
+        angle.append(-i * math.pi / 180)
+    print('angle: ', len(angle))
+    path_svm = []
+    path_svm.append(start_pos)
+    theta_current = 0
+    while Utils.distance_real(path_svm[-1], end_pos) > 20:
+        min_heuristic = 10000
+        x_next = None
+        y_next = None
+        theta_next = None
+        for i in range(len(angle)):
+            x_temp = path_svm[-1][0] + gap * math.cos(theta_current + angle[i])
+            y_temp = path_svm[-1][1] + gap * math.sin(theta_current + angle[i])
+            if x_temp >= 800 or x_temp <= 0 or y_temp >= 800 or y_temp <= 0:
+                continue
+            temp_spot = grid[int(x_temp // gap)][int(y_temp // gap)]
+            if not temp_spot.is_barrier():
+                #TODO: change to distance to end point not distance real
+                heuristic = np.abs(clf.decision_function([(x_temp, y_temp)])) + np.log10(Utils.distance_real((x_temp, y_temp), end_pos))
+                if heuristic < min_heuristic :
+                    min_heuristic = heuristic
+                    x_next = x_temp
+                    y_next = y_temp
+                    theta_next = theta_current + angle[i]
+        if x_next == None and y_next == None:
+            print("Can't find path")
+            break
+        path_svm.append((x_next, y_next))
+        theta_current = theta_next
+       
+
+    return path_svm, obs1, obs2
+    # return path_svm

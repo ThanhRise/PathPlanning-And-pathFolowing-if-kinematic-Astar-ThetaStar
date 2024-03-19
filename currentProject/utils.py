@@ -1,6 +1,7 @@
 from dynamicObstacle import DynamicObstacle
+from constant import Constant
 import math
-
+import random
 
 class Utils:
     
@@ -75,6 +76,29 @@ class Utils:
                 dynamic_obstacles.append(obs)
         return dynamic_obstacles
     
+    def generate_dynamic_obstacles(num_obstacles, MAP):
+        dynamic_obstacles = []
+        min_size = Constant.MIN_SIZE
+        max_size = Constant.MAX_SIZE
+        min_velocity = Constant.MIN_VELOCITY
+        max_velocity = Constant.MAX_VELOCITY
+        for i in range(num_obstacles):
+            d = random.randint(min_size, max_size)
+            velocity = random.randint(min_velocity, max_velocity)
+            while True:
+                x = random.randint(MAP.GAP+d +1, MAP.WIDTH -MAP.GAP-d -1 )
+                y = random.randint(MAP.GAP+d +1, MAP.WIDTH -MAP.GAP-d -1)
+                if MAP.grid[int((x + d)/MAP.GAP)][int(y/MAP.GAP)].is_barrier() == False or \
+                    MAP.grid[int(x/MAP.GAP)][int((y+ d)/MAP.GAP)].is_barrier() == False or \
+                        MAP.grid[int((x - d)/MAP.GAP)][int(y/MAP.GAP)].is_barrier() == False or \
+                            MAP.grid[int(x/MAP.GAP)][int((y - d)/MAP.GAP)].is_barrier() == False:
+                    break
+
+            theta = random.uniform(0, 360)
+            obs = DynamicObstacle(x, y, d, theta, velocity)
+            dynamic_obstacles.append(obs)
+        return dynamic_obstacles
+
     def log_collision(file_name, time, map_name, robot, dynamic_obstacles):
         with open(file_name, 'a') as f:
             f.write(f'{time},{map_name},{robot.x},{robot.y},{robot.theta}')

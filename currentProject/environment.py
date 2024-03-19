@@ -68,4 +68,20 @@ class Environment:
             for spot in range(self.ROWS):
                 grid[row][spot].draw(self.WIN)
         self.draw_grid()
+
+    def draw_not_update_check_obs(self, grid = None, grid2 = None):
+        if grid == None:
+            grid = self.grid
+        self.WIN.fill(Constant.WHITE)
+        for row in range(self.ROWS):
+            for spot in range(self.ROWS):
+                if grid2[row][spot].is_barrier():
+                    if grid[row][spot].is_barrier():
+                        grid[row][spot].draw(self.WIN)
+                    else:
+                        grid[row][spot].draw(self.WIN, Constant.GREY)
+                else:
+                    grid[row][spot].draw(self.WIN)
+        
+        self.draw_grid()
     

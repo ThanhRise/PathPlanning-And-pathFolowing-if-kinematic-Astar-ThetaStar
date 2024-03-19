@@ -44,7 +44,7 @@ class Robot:
         self.grid_in_vison_robot = []
         one_degree = math.pi / 180
         self.angle.append(0)
-        for i in range(0, 91, 10):
+        for i in range(0, 121, 10):
             self.angle.append(i * one_degree)
             self.angle.append(-i * one_degree)
         self.num_collision = 0
@@ -95,7 +95,7 @@ class Robot:
         self.vl = self.u - (self.W * self.width)/2
         # print("vr: ", self.vr, "vl: ", self.vl, "W: ", self.W, "u: ", self.u)
         last_time = pygame.time.get_ticks()
-        while pygame.time.get_ticks() - time_move < self.time_step and Utils.distance_real((self.x, self.y), self.target) > 10:
+        while pygame.time.get_ticks() - time_move < self.time_step and Utils.distance_real((self.x, self.y), self.target) > 5:
             if self.next_angle_move != self.W:
                 break
             # Map.draw_not_update()
@@ -219,6 +219,7 @@ class Robot:
         return spot, x, y
 
     def find_next_spot(self, MAP, back=False):
+        
         current = self.x, self.y
         gap = Constant.WIDTH // Constant.ROWS
         # the next point will be based on velocity, time and angle
@@ -226,7 +227,7 @@ class Robot:
             neighbors = []
             for i in range(len(self.angle)):
                 for j in range(10, 16, 5):
-                    for k in range(5, 16, 6):
+                    for k in range(10, 28, 6):
                         time_step = 100 + j * 100
                         velocity = 10 + k
                         # time_step = 1500
@@ -244,53 +245,61 @@ class Robot:
 
             if len(neighbors) > 0:
                 # kd tree - non vison
-                # min_spot = None
-                # obstacle_dist = 0
-                # f_cost_best = 100000000
-                # angle_selected = self.next_angle_move
-                # # print('neighbors: ', len(neighbors))
-                # limit = Utils.distance_real((self.x, self.y), self.target)
-                # for i in range(len(neighbors)):
-
-                #     dist = Utils.distance_real(
-                #         (neighbors[i][1], neighbors[i][2]), self.target)
-
-                #     dist2 = self.distance_to_end[neighbors[i][0]]
-
-                #     nearest_obstacle_dist, _ = self.KDTree.query(
-                #         [(neighbors[i][1], neighbors[i][2])])
-
-                #     nearest_core = 1 / (nearest_obstacle_dist + 1)
-                #     # f_cost = nearest_core * 30 + dist
-                #     if limit < 30:
-                #         f_cost = dist
-                #     else:
-                #         f_cost = dist2 + nearest_core * 100 * (1 - 30/limit)
-
-                #     if f_cost < f_cost_best:
-                #         f_cost_best = f_cost
-                #         min_spot = neighbors[i][1], neighbors[i][2]
-                #         angle_selected = neighbors[i][3]
-                #         obstacle_dist = nearest_obstacle_dist
-                #         self.time_step = neighbors[i][4]
-                #         self.u = neighbors[i][5]
+                if back == False:
+                    min_spot = None
+                    obstacle_dist = 0
+                    f_cost_best = 100000000
+                    angle_selected = self.next_angle_move
+                    # print('neighbors: ', len(neighbors))
+                    limit = Utils.distance_real((self.x, self.y), self.target)
+                    for i in range(len(neighbors)):
+                        dist = Utils.distance_real((neighbors[i][1], neighbors[i][2]), self.target)
+                        dist2 = self.distance_to_end[neighbors[i][0]]
+                        nearest_obstacle_dist, _ = self.KDTree.query([(neighbors[i][1], neighbors[i][2])])
+                        nearest_core = 1 / (nearest_obstacle_dist + 1)
+                        # f_cost = nearest_core * 30 + dist
+                        if limit < 30:
+                            f_cost = dist
+                        else:
+                            f_cost = dist2 +  nearest_core * 200 * (1 - 30/limit)
+                        if f_cost < f_cost_best:
+                            f_cost_best = f_cost
+                            min_spot = neighbors[i][1], neighbors[i][2]
+                            angle_selected = neighbors[i][3]
+                            obstacle_dist = nearest_obstacle_dist
+                            self.time_step = neighbors[i][4]
+                            self.u = neighbors[i][5]
+                else:
+                    min_spot = None
+                    obstacle_dist = 0
+                    f_cost_best = 0
+                    for i in range(len(neighbors)):
+                        dist = self.KDTree.query([(neighbors[i][1], neighbors[i][2])])
+                        f_cost = dist
+                        if f_cost > f_cost_best:
+                            f_cost_best = f_cost
+                            min_spot = neighbors[i][1], neighbors[i][2]
+                            angle_selected = neighbors[i][3]
+                            self.time_step = neighbors[i][4]
+                            self.u = neighbors[i][5]
 
                 # KD tree - all map
                 # min_spot = None
+                # angle_selected = None
                 # obstacle_dist = 0
                 # f_cost_best = 1000000
                 # for i in range(len(neighbors)):
 
                 #     dist = Utils.distance_real((neighbors[i][1], neighbors[i][2]), self.target)
 
-                #     # dist2 = self.distance_to_end[neighbors[i][0]]
+                #     dist2 = self.distance_to_end[neighbors[i][0]]
 
-                #     # nearest_obstacle_dist, _ = self.KDTree.query([(neighbors[i][1], neighbors[i][2])])
+                #     nearest_obstacle_dist, _ = self.KDTree.query([(neighbors[i][1], neighbors[i][2])])
 
-                #     # nearest_core = 1 / (nearest_obstacle_dist + 1)
-                #     # f_cost = nearest_core * 30 + dist
+                #     nearest_core = 1 / (nearest_obstacle_dist + 1)
+                #     f_cost = nearest_core * 30 + dist + dist2 * 10
 
-                #     f_cost = dist
+                #     # f_cost = dist
 
                 #     # f_cost = dist  + dist2 *20
                 #     # print('f_cost: ', f_cost, 'nearest_obstacle_dist: ', nearest_obstacle_dist, 'dist: ', dist, 'time step: ', neighbors[i][4], 'dist2', dist2)
@@ -305,36 +314,36 @@ class Robot:
                 #         self.u = neighbors[i][5]
 
                 # voronoi - non vison
-                if back == False:
-                    min_spot = None
-                    obstacle_dist = 0
-                    f_cost_best = 1000000
-                    for i in range(len(neighbors)):
+                # if back == False:
+                #     min_spot = None
+                #     obstacle_dist = 0
+                #     f_cost_best = 1000000
+                #     for i in range(len(neighbors)):
 
-                        dist = Utils.distance_real((neighbors[i][1], neighbors[i][2]), self.target)
-                        f_cost = dist
-                        if f_cost < f_cost_best:
+                #         dist = Utils.distance_real((neighbors[i][1], neighbors[i][2]), self.target)
+                #         f_cost = dist
+                #         if f_cost < f_cost_best:
 
-                            f_cost_best = f_cost
-                            min_spot = neighbors[i][1], neighbors[i][2]
-                            angle_selected = neighbors[i][3]
-                            self.time_step = neighbors[i][4]
-                            self.u = neighbors[i][5]
-                else:
-                    min_spot = None
-                    obstacle_dist = 0
-                    f_cost_best = 0
-                    for i in range(len(neighbors)):
+                #             f_cost_best = f_cost
+                #             min_spot = neighbors[i][1], neighbors[i][2]
+                #             angle_selected = neighbors[i][3]
+                #             self.time_step = neighbors[i][4]
+                #             self.u = neighbors[i][5]
+                # else:
+                #     min_spot = None
+                #     obstacle_dist = 0
+                #     f_cost_best = 0
+                #     for i in range(len(neighbors)):
 
-                        dist = Utils.distance_real((neighbors[i][1], neighbors[i][2]), self.target)
-                        f_cost = dist
-                        if f_cost > f_cost_best:
+                #         dist = Utils.distance_real((neighbors[i][1], neighbors[i][2]), self.target)
+                #         f_cost = dist
+                #         if f_cost > f_cost_best:
 
-                            f_cost_best = f_cost
-                            min_spot = neighbors[i][1], neighbors[i][2]
-                            angle_selected = neighbors[i][3]
-                            self.time_step = neighbors[i][4]
-                            self.u = neighbors[i][5]
+                #             f_cost_best = f_cost
+                #             min_spot = neighbors[i][1], neighbors[i][2]
+                #             angle_selected = neighbors[i][3]
+                #             self.time_step = neighbors[i][4]
+                #             self.u = neighbors[i][5]
 
 
 
@@ -374,24 +383,25 @@ class Robot:
 
     def detect_obstacle(self, MAP):
         
-
+        flag = False
         # reset dynamic obstacles
         for row in range(MAP.ROWS):
             for col in range(MAP.ROWS):
-                if self.grid_in_vison_robot[row][col].is_dynamic_obs():
+                if self.grid_in_vison_robot[row][col].is_dynamic_obs() or self.grid_in_vison_robot[row][col].is_future_dynamic_obs():
                     self.grid_in_vison_robot[row][col].reset()
 
         for row in range(MAP.ROWS):
             for col in range(MAP.ROWS):
                 if Utils.distance_real((self.x, self.y), self.grid_in_vison_robot[row][col].get_real_pos(MAP.GAP)) < 100:
-                    if MAP.grid[row][col].is_barrier():
+                    if MAP.grid[row][col].is_barrier() and not self.grid_in_vison_robot[row][col].is_barrier():
                         self.grid_in_vison_robot[row][col].make_barrier()
+                        flag = True
 
         # dynamic obstacles
         for obs in self.dynamic_obstacles_replan:
             step_horizontal = obs.d * 2 /3
-            x_next = obs.x + 4 * obs.velocity * math.cos(obs.theta)
-            y_next = obs.y + 4 * obs.velocity * math.sin(obs.theta)
+            x_next = obs.x + 3 * obs.velocity * math.cos(obs.theta)
+            y_next = obs.y + 3 * obs.velocity * math.sin(obs.theta)
             if x_next <= 8:
                 x_next = 9
             if x_next >= 792:
@@ -406,76 +416,114 @@ class Robot:
 
             x_next = int(x_next)
             y_next = int(y_next)
-
-            while Utils.distance_real((x_current, y_current), (x_next, y_next)) > 15 and x_current < 800 and x_current > 0 and y_current < 800 and y_current > 0:
-
+            index = -1
+            while Utils.distance_real((x_current, y_current), (x_next, y_next)) > 24 and x_current < 800 and x_current > 0 and y_current < 800 and y_current > 0:
+                index += 1
                 if x_current + 8 >= 800 or x_current - 8 <= 0 or y_current + 8 >= 800 or y_current - 8 <= 0:
                     break
-
                 if Utils.distance_real((x_current, y_current), (self.x, self.y)) < 32 and math.fabs(obs.theta - self.theta) > math.pi / 2*0.8 and math.fabs(obs.theta - self.theta) < math.pi / 2*1.2:
+                    x_current += 16 * math.cos(obs.theta)
+                    y_current += 16 * math.sin(obs.theta)
                     continue
 
                 temp_spot = self.grid_in_vison_robot[int(x_current // MAP.GAP)][int(y_current // MAP.GAP)]
                 if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
-                    temp_spot.make_dynamic_obs()
+                    if index == 0 or index == 1:
+                        temp_spot.make_dynamic_obs()
+                    else:
+                        temp_spot.make_future_dynamic_obs()
+                    flag = True
                 temp_spot = self.grid_in_vison_robot[int((x_current + step_horizontal) // MAP.GAP)][int(y_current // MAP.GAP)]
                 if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
-                    temp_spot.make_dynamic_obs()
+                    if index == 0 or index == 1:
+                        temp_spot.make_dynamic_obs()
+                    else:
+                        temp_spot.make_future_dynamic_obs()
+                    flag = True
                 temp_spot = self.grid_in_vison_robot[int(x_current // MAP.GAP)][int((y_current + step_horizontal) // MAP.GAP)]
                 if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
-                    temp_spot.make_dynamic_obs()
+                    if index == 0 or index == 1:
+                        temp_spot.make_dynamic_obs()
+                    else:
+                        temp_spot.make_future_dynamic_obs()
+                    flag = True
                 temp_spot = self.grid_in_vison_robot[int((x_current + step_horizontal) // MAP.GAP)][int((y_current + step_horizontal) // MAP.GAP)]
                 if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
-                    temp_spot.make_dynamic_obs()
+                    if index == 0 or index == 1:
+                        temp_spot.make_dynamic_obs()
+                    else:
+                        temp_spot.make_future_dynamic_obs()
+                    flag = True
                 temp_spot = self.grid_in_vison_robot[int((x_current - step_horizontal) // MAP.GAP)][int(y_current // MAP.GAP)]
                 if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
-                    temp_spot.make_dynamic_obs()
+                    if index == 0 or index == 1:
+                        temp_spot.make_dynamic_obs()
+                    else:
+                        temp_spot.make_future_dynamic_obs()
+                    flag = True
                 temp_spot = self.grid_in_vison_robot[int(x_current // MAP.GAP)][int((y_current - step_horizontal) // MAP.GAP)]
                 if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
-                    temp_spot.make_dynamic_obs()
+                    if index == 0 or index == 1:
+                        temp_spot.make_dynamic_obs()
+                    else:
+                        temp_spot.make_future_dynamic_obs()
+                    flag = True
                 temp_spot = self.grid_in_vison_robot[int((x_current - step_horizontal) // MAP.GAP)][int((y_current - step_horizontal) // MAP.GAP)]
                 if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
-                    temp_spot.make_dynamic_obs()
+                    if index == 0 or index == 1:
+                        temp_spot.make_dynamic_obs()
+                    else:
+                        temp_spot.make_future_dynamic_obs()
+                    flag = True
                 temp_spot = self.grid_in_vison_robot[int((x_current + step_horizontal) // MAP.GAP)][int((y_current - step_horizontal) // MAP.GAP)]
                 if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
-                    temp_spot.make_dynamic_obs()
+                    if index == 0 or index == 1:
+                        temp_spot.make_dynamic_obs()
+                    else:
+                        temp_spot.make_future_dynamic_obs()
+                    flag = True
                 temp_spot = self.grid_in_vison_robot[int((x_current - step_horizontal) // MAP.GAP)][int((y_current + step_horizontal) // MAP.GAP)]
                 if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
-                    temp_spot.make_dynamic_obs()
+                    if index == 0 or index == 1:
+                        temp_spot.make_dynamic_obs()
+                    else:
+                        temp_spot.make_future_dynamic_obs()
+                    flag = True
 
 
-                x_current += 16 * math.cos(obs.theta)
-                y_current += 16 * math.sin(obs.theta)
+                x_current += 10 * math.cos(obs.theta)
+                y_current += 10 * math.sin(obs.theta)
 
-
+        # if flag == False:
+        #     return False
         
         # ------------------------------------------------------------------#
         # Use KDTree to find the nearest obstacle
         # ------------------------------------------------------------------#
         obstacle = [spot.get_real_pos(MAP.GAP)
-            for row in self.grid_in_vison_robot for spot in row if spot.is_barrier() or spot.is_dynamic_obs()]
-        # self.KDTree = KDTree(obstacle)
+            for row in self.grid_in_vison_robot for spot in row if spot.is_barrier() or spot.is_dynamic_obs() or spot.is_future_dynamic_obs()]
+        self.KDTree = KDTree(obstacle)
         # ------------------------------------------------------------------#
         
         # ------------------------------------------------------------------#
         # Use Voronoi to find the path
-        MAP.voronoi = Voronoi(obstacle)
-        segments = []
-        for i, j in MAP.voronoi.ridge_vertices:
-            if i >= 0 and j >= 0:
-                p1 = (MAP.voronoi.vertices[i][0], MAP.voronoi.vertices[i][1])
-                p2 = (MAP.voronoi.vertices[j][0], MAP.voronoi.vertices[j][1])
-                segments.append((p1, p2))
+        # MAP.voronoi = Voronoi(obstacle)
+        # segments = []
+        # for i, j in MAP.voronoi.ridge_vertices:
+        #     if i >= 0 and j >= 0:
+        #         p1 = (MAP.voronoi.vertices[i][0], MAP.voronoi.vertices[i][1])
+        #         p2 = (MAP.voronoi.vertices[j][0], MAP.voronoi.vertices[j][1])
+        #         segments.append((p1, p2))
 
-        for i, segment in enumerate(segments):
-            segments[i] = ((int(segment[0][0]), int(segment[0][1])), (int(segment[1][0]), int(segment[1][1])))
-        self.segments = segments
-        self.segments = [(p1, p2) for p1, p2 in self.segments if Utils.line_of_sight((int(p1[0]/MAP.GAP), int(p1[1]/MAP.GAP)), (int(p2[0]/MAP.GAP), int(p2[1]/MAP.GAP)), self.grid_in_vison_robot)]
-        start_pos = MAP.grid[int(self.x // MAP.GAP)][int(self.y // MAP.GAP)]
+        # for i, segment in enumerate(segments):
+        #     segments[i] = ((int(segment[0][0]), int(segment[0][1])), (int(segment[1][0]), int(segment[1][1])))
+        # self.segments = segments
+        # self.segments = [(p1, p2) for p1, p2 in self.segments if Utils.line_of_sight((int(p1[0]/MAP.GAP), int(p1[1]/MAP.GAP)), (int(p2[0]/MAP.GAP), int(p2[1]/MAP.GAP)), self.grid_in_vison_robot)]
+        # start_pos = MAP.grid[int(self.x // MAP.GAP)][int(self.y // MAP.GAP)]
 
-        self.pathRb = Astar_voronoi_kinematic(self, MAP, start_pos, self.segments)
+        # self.pathRb = Astar_voronoi_kinematic(self, MAP, start_pos, self.segments)
         # ------------------------------------------------------------------#
-
+        return True
 
     def draw(self, map):
         map.blit(self.rotated, self.rect)

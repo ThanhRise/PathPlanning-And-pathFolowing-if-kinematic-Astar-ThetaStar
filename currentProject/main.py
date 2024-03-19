@@ -16,12 +16,6 @@ import time
 
 lock_event = threading.Event()
 
-# 10/11/2023
-# thay doi target theo goc cua ( neu goc cua gap thi target se gan hon)
-# voronoi tren khong gian khong biet truoc
-
-
-
 robot = None
 MAP = None
 dynamicObstacles = None
@@ -42,6 +36,25 @@ def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_
     MAP.make_barrier_edge()
     pygame.display.update()
 
+    # Astar_plan = Astar_find_path_in_grid(MAP.start, MAP.end, MAP.grid)
+    # for i in range(len(Astar_plan) - 1):
+    #     pygame.draw.line(
+    #         MAP.WIN, Constant.RED, Astar_plan[i].get_real_pos(MAP.GAP), Astar_plan[i + 1].get_real_pos(MAP.GAP), 3)
+    # path_test, obs1, obs2 = SVM_path_planning(MAP.start, MAP.end, MAP.grid, MAP.GAP)
+    # # print("path_test", path_test)
+    # # path_test = [MAP.grid[int(spot[0])][int(spot[1])] for spot in path_test if spot[0] >= 0 and spot[0] < MAP.ROWS and spot[1] >= 0 and spot[1] < MAP.ROWS]
+    # # path_test = [spot.get_real_pos(MAP.GAP) for spot in path_test]
+    # for i in range(len(path_test) - 1):
+    #     pygame.draw.line(
+    #         MAP.WIN, Constant.BLUE, path_test[i], path_test[i + 1], 3)
+    # # draw obs
+    # for obs in obs1:
+    #     pygame.draw.circle(MAP.WIN, Constant.RED, (obs[0]* MAP.GAP, obs[1]* MAP.GAP), 5)
+    # for obs in obs2:
+    #     pygame.draw.circle(MAP.WIN, Constant.GREEN, (obs[0]* MAP.GAP, obs[1]* MAP.GAP), 5)
+    # pygame.display.update()
+    # time.sleep(100)
+
     init_time = pygame.time.get_ticks()
     init_satety_score = 0
     init_index = 0
@@ -50,21 +63,24 @@ def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_
     fixEndPoint = MAP.end.get_real_pos(MAP.GAP)
     robot.distance_to_end = BFS(MAP.grid, MAP.end)
     # robot.distance_to_end_one_way = BFSv2(MAP.grid, MAP.start, "10")
-    robot.distance_to_start = BFS(MAP.grid, MAP.start)
+    # robot.distance_to_start = BFS(MAP.grid, MAP.start)
     obstacle = [spot.get_real_pos(MAP.GAP)
                 for row in MAP.grid for spot in row if spot.is_barrier()]
     robot.KDTree = KDTree(obstacle)
     robot.index_path = 0
 
     # # robot.pathRb = find_path(robot=robot, MAP=MAP, start=MAP.start)
-    # robot.pathRb = find_path_with_kinematic(robot=robot, MAP=MAP, start_pos_current=MAP.start)
+    robot.pathRb = find_path_with_kinematic(robot=robot, MAP=MAP, start_pos_current=MAP.start, end_pos_current=MAP.end)
 
-    
-    regions, robot.segments = partition_environment(MAP)
-    robot.segments = [(p1, p2) for p1, p2 in robot.segments if Utils.line_of_sight((int(p1[0]/MAP.GAP), int(p1[1]/MAP.GAP)), (int(p2[0]/MAP.GAP), int(p2[1]/MAP.GAP)), MAP.grid)]
+        
+    # regions, robot.segments = partition_environment(MAP)
+    # robot.segments = [(p1, p2) for p1, p2 in robot.segments if Utils.line_of_sight((int(p1[0]/MAP.GAP), int(p1[1]/MAP.GAP)), (int(p2[0]/MAP.GAP), int(p2[1]/MAP.GAP)), MAP.grid)]
 
-    robot.pathVoronoi = Astar_voronoi_kinematic(robot, MAP, MAP.start, robot.segments)
-    robot.pathRb = robot.pathVoronoi
+    # robot.pathVoronoi = Astar_voronoi_kinematic(robot, MAP, MAP.start, robot.segments)
+    # robot.pathRb = robot.pathVoronoi
+
+    # path_test, _, _ = SVM_path_planning(MAP.start, MAP.end, MAP.grid, MAP.GAP)
+    # robot.pathRb = path_test
     
     planed = True
     print("robot.pathRb : OKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
@@ -80,7 +96,7 @@ def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_
         robot.target = robot.pathRb[robot.index_path]  # target is float
 
         robot.index_path += 1
-        while Utils.distance_real((robot.x, robot.y), robot.target) > 30:
+        while Utils.distance_real((robot.x, robot.y), robot.target) > 50:
 
             # ==================================================================================================
             if planed == True:
@@ -107,12 +123,8 @@ def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_
                     robot.theta = robot.theta + math.pi
                 robot.backwards = False
 
-            # if Utils.distance_real(robot.next_pos_move, next_pos_temp) < 20:
             robot.next_pos_move, robot.next_angle_move, __dict__ = robot.find_next_spot(MAP)
-            # next_pos_temp = robot.next_pos_move
-
-
-
+            
             if robot.next_pos_move == None or robot.next_angle_move == None:
                 if robot.theta > 0 and robot.theta < math.pi:
                     robot.theta = robot.theta - math.pi
@@ -127,7 +139,7 @@ def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_
                 last_time_back = pygame.time.get_ticks()
                 time_backwards = robot.time_step
 
-            if len(robot.dynamic_obstacles_replan) > 0 and (robot.time_replan == 0 or pygame.time.get_ticks() - robot.time_replan > 4000):
+            if len(robot.dynamic_obstacles_replan) > 0 and (robot.time_replan == 0 or pygame.time.get_ticks() - robot.time_replan > 2000):
                 # =============================
                 # other thread wait for this thread
                 # lock_event.set()
@@ -144,11 +156,16 @@ def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_
                     elif robot.theta < -math.pi:
                         robot.theta = robot.theta + math.pi
                     robot.backwards = False
-                robot.pathRb, robot.KDTree, robot.time_replan = replanV2(robot=robot, list_obstacles=robot.dynamic_obstacles_replan, MAP=MAP)
+                robot.pathRb, robot.KDTree, robot.time_replan = replan(robot=robot, list_obstacles=robot.dynamic_obstacles_replan, MAP=MAP)
                 # print('robot.pathRb', robot.pathRb)
                 print("Replan", robot.time_replan)
                 robot.replaned = True
-                robot.index_path = 0
+                if len(robot.pathRb) >= 20:
+                    robot.index_path = 10
+                elif len(robot.pathRb) >= 10:
+                    robot.index_path = 5
+                else:
+                    robot.index_path = 0
 
                 # =============================
                 # other thread continue
@@ -326,7 +343,8 @@ def main():
                         print("Load map")
                         MAP.MAP_NAME = "map" + str(i + 1)
                         MAP.grid, MAP.start, MAP.end, MAP.obstacles = Utils.load_map(fileName, MAP.grid, MAP.MAP_NAME, MAP.ROWS)
-                        dynamicObstacles = Utils.load_dynamic_obstacles(dynamicFileName)
+                        dynamicObstacles = Utils.load_dynamic_obstacles(dynamicFileName)  
+                        # dynamicObstacles = []
                         MAP.draw()
                         pygame.display.update()
 

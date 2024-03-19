@@ -36,6 +36,9 @@ def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_
     MAP.make_barrier_edge()
     pygame.display.update()
     fixEndPoint = MAP.end.get_real_pos(MAP.GAP)
+    init_time = pygame.time.get_ticks()
+    init_index = 0
+    init_satety_score = 0
 
     # deep copy grid
     robot.grid_in_vison_robot = copy.deepcopy(MAP.grid)
@@ -63,7 +66,7 @@ def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_
     last_time = pygame.time.get_ticks()
     last_time_back = None
     time_backwards = 0
-    while Utils.distance_real((robot.x, robot.y), robot.target) > 1:
+    while Utils.distance_real((robot.x, robot.y), robot.target) > 15:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
@@ -71,7 +74,7 @@ def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_
                 pygame.quit()
                 return
             
-        if pygame.time.get_ticks() - last_time > 300:
+        if pygame.time.get_ticks() - last_time > 150:
             robot.detect_obstacle(MAP)
 
             delta_time = pygame.time.get_ticks()
@@ -124,15 +127,25 @@ def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_
             planed = False
 
         # ==================================================================================================
+        init_satety_score += robot.KDTree.query((robot.x, robot.y))[0]
+        init_index += 1
 
-   
+    print('time move', pygame.time.get_ticks() - init_time)
+    
+    # print len path
+    len_path = 0
+    for i in range(len(robot.trail_set) - 1):
+        len_path += Utils.distance_real(robot.trail_set[i], robot.trail_set[i + 1])
+    
+    # rounding 2 decimal
+    print("len_path", round(len_path, 2))
 
-    robot.u = 0
-    # while Utils.distance_real((robot.x, robot.y), fixEndPoint) > 1:
-    #     robot.next_pos_move, robot.next_angle_move, _ = robot.find_next_spot(
-    #         robot.grid_in_vison_robot, fixEndPoint, MAP.WIN, robot.distance_to_end, robot.KDTree)
-    #     # next_pos_temp = robot.next_pos_move
+    # print safety score
+    safety_score = init_satety_score / init_index
+    print("safety_score", round(safety_score, 2))
 
+    # print number of collision
+    print("num_collision", robot.num_collision)
     run = False
 
 
@@ -162,14 +175,15 @@ def sensor_detect():
     global robot, MAP, dynamicObstacles, sensor, run
     last_time = pygame.time.get_ticks()
     while run:
-        if pygame.time.get_ticks() - last_time > 300:
+        if pygame.time.get_ticks() - last_time > 150:
             robot.dynamic_obstacles_replan = list(
                 sensor.detect_replan(robot, dynamicObstacles))
             last_time = pygame.time.get_ticks()
         # write log collision file
         for obs in dynamicObstacles:
-            if Utils.distance_real((robot.x, robot.y), (obs.x, obs.y)) < 20:
+            if Utils.distance_real((robot.x, robot.y), (obs.x, obs.y)) < obs.d + 6:
                 print("Collision")
+                robot.num_collision += 1
                 # pygame.image.save(MAP.WIN, f'C:/Users/admin/LearningIT/20222/Project2/MRPP/currentProject/collision/' + str(pygame.time.get_ticks()) + '.png')
                 Utils.log_collision(Constant.COLLISIONFILE, pygame.time.get_ticks(), MAP.MAP_NAME, robot, dynamicObstacles)
 
@@ -178,12 +192,13 @@ def display():
     global robot, MAP, dynamicObstacles, run
     while run:
         
-        MAP.draw_not_update(robot.grid_in_vison_robot)
+        # MAP.draw_not_update(robot.grid_in_vison_robot)
+        MAP.draw_not_update_check_obs(robot.grid_in_vison_robot, MAP.grid)
         pygame.draw.circle(MAP.WIN, Constant.RED, (robot.x, robot.y), 100, 2)
         for obstacle in dynamicObstacles:
             obstacle.draw(MAP.WIN)
-        for location in range(len(robot.pathRb) - 1):
-            pygame.draw.line(MAP.WIN, Constant.BLUE, robot.pathRb[location], robot.pathRb[location + 1], 2)
+        # for location in range(len(robot.pathRb) - 1):
+        #     pygame.draw.line(MAP.WIN, Constant.BLUE, robot.pathRb[location], robot.pathRb[location + 1], 2)
         pygame.draw.circle(MAP.WIN, Constant.RED, robot.target, 5)
         robot.rotated = pygame.transform.rotozoom(robot.img, math.degrees(-robot.theta), 1)
         robot.rect = robot.rotated.get_rect(center=(robot.x, robot.y))
@@ -231,7 +246,9 @@ def main():
                         print("Load map")
                         MAP.MAP_NAME = "map" + str(i + 1)
                         MAP.grid, MAP.start, MAP.end, MAP.obstacles = Utils.load_map(fileName, MAP.grid, MAP.MAP_NAME, MAP.ROWS)
-                        dynamicObstacles = Utils.load_dynamic_obstacles(dynamicFileName)
+                        # dynamicObstacles = Utils.load_dynamic_obstacles(dynamicFileName)
+                        dynamicObstacles = Utils.generate_dynamic_obstacles(50, MAP)
+                        # dynamicObstacles = []
                         MAP.draw()
                         pygame.display.update()
             

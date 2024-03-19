@@ -4,6 +4,12 @@ class Constant:
     WIDTH = 800
     ROWS = 50
     GREY = (128, 128, 128)
+
+    # (192, 192, 192)
+    SUP_GREY = (192, 192, 192)
+    
+    # (64, 64, 64)
+    SUP_BLACK = (64, 64, 64)
     WHITE = (255, 255, 255)
     BLACK = (0, 0, 0)
     RED = (255, 0, 0)
@@ -26,3 +32,10 @@ class Constant:
     MIN_APROXIMATE_DISTANCE = 3
     ABILITY_REPLAN_LOW = -1
     ABILITY_REPLAN_HIGH = 1
+
+
+    # DYNAMIC OBSTACLE
+    MIN_SIZE = 5
+    MAX_SIZE = 15
+    MIN_VELOCITY = 10
+    MAX_VELOCITY = 25

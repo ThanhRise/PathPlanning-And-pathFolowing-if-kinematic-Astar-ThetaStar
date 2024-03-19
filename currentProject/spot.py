@@ -43,6 +43,9 @@ class Spot:
 
     def is_dynamic_obs(self):
         return self.color == Constant.GREY
+    
+    def is_future_dynamic_obs(self):
+        return self.color == Constant.SUP_GREY
 
     def reset(self):
         self.color = Constant.WHITE
@@ -78,8 +81,15 @@ class Spot:
         self.prev_color = self.color  # save current color as prev_color
         self.color = Constant.GREY
 
-    def draw(self, win):
-        pygame.draw.rect(win, self.color, (self.x, self.y, self.grap, self.grap))
+    def make_future_dynamic_obs(self):
+        self.prev_color = self.color
+        self.color = Constant.SUP_GREY
+
+    def draw(self, win, color=None):
+        if color is None:
+            pygame.draw.rect(win, self.color, (self.x, self.y, self.grap, self.grap))
+        else:   
+            pygame.draw.rect(win, color, (self.x, self.y, self.grap, self.grap))
 
     # update the neighbors for BFS
 
