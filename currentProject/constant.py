@@ -1,9 +1,11 @@
 import pygame
 
 class Constant:
-    WIDTH = 800
-    ROWS = 50
+    WIDTH = 1000
+    ROWS = 100
+    GAP = WIDTH // ROWS
     GREY = (128, 128, 128)
+
 
     # (192, 192, 192)
     SUP_GREY = (192, 192, 192)
@@ -36,6 +38,6 @@ class Constant:
 
     # DYNAMIC OBSTACLE
     MIN_SIZE = 5
-    MAX_SIZE = 15
-    MIN_VELOCITY = 10
-    MAX_VELOCITY = 25
+    MAX_SIZE = 12
+    MIN_VELOCITY = 8
+    MAX_VELOCITY = 16

@@ -22,8 +22,8 @@ class Spot:
         return self.row, self.col
 
     def get_real_pos(self, gap):
-        x = gap * self.row + 8   # để đường thẳng nằm giữa ô vuông
-        y = gap * self.col + 8
+        x = gap * self.row + Constant.GAP / 2   # để đường thẳng nằm giữa ô vuông
+        y = gap * self.col + Constant.GAP / 2
         return x, y
 
     def is_closed(self):

@@ -63,6 +63,24 @@ def Partial_BFS(grid, start, end):
                 queue.append(neighbor)
     return distance
 
+def update_safety_spot(grid, obstacle, MAP):
+    distance_spot = {spot: int(1000000) for row in grid for spot in row}
+    for i in range(len(obstacle)):
+        obs = obstacle[i]
+        row, col = int(obs[0] / MAP.GAP), int(obs[1] / MAP.GAP)
+        if grid[row][col].is_barrier():
+            distance_spot[grid[row][col]] = 0
+            for j in range(-1, 2):
+                for k in range(-1, 2):
+                    if j == 0 and k == 0:
+                        continue
+                    if row + j < 0 or row + j >= MAP.ROWS or col + k < 0 or col + k >= MAP.ROWS:
+                        continue
+                    if not grid[row + j][col + k].is_barrier():
+                        distance_spot[grid[row + j][col + k]] = 1
+    return distance_spot
+
+
 def Astar(grid, start, end):
     end_pos = grid[end[0]][end[1]]
     start_pos = grid[start[0]][start[1]]
@@ -285,14 +303,14 @@ def replan(robot, list_obstacles, MAP):
             # print("angle", obs.theta, "atan2", math.atan2(obs.y - robot.y, obs.x - robot.x), "angle - atan2", obs.theta - math.atan2(obs.y - robot.y, obs.x - robot.x))
             x_next = obs.x + 5 * obs.velocity * math.cos(obs.theta)
             y_next = obs.y + 5 * obs.velocity * math.sin(obs.theta)
-            if x_next <= 8:
-                x_next = 9
-            if x_next >= 792:
-                x_next = 790
-            if y_next <= 8:
-                y_next = 9
-            if y_next >= 792:
-                y_next = 790
+            if x_next <= Constant.GAP / 2:
+                x_next = Constant.GAP / 2 +1
+            if x_next >= Constant.WIDTH - Constant.GAP / 2:
+                x_next = Constant.WIDTH - Constant.GAP / 2 - 1
+            if y_next <= Constant.GAP / 2:
+                y_next = Constant.GAP / 2 + 1
+            if y_next >= Constant.WIDTH - Constant.GAP / 2:
+                y_next = Constant.WIDTH - Constant.GAP / 2 - 1
 
             x_current = int(obs.x)
             y_current = int(obs.y)
@@ -300,12 +318,12 @@ def replan(robot, list_obstacles, MAP):
             x_next = int(x_next)
             y_next = int(y_next)
 
-            while Utils.distance_real((x_current, y_current), (x_next, y_next)) > 15 and x_current < 800 and x_current > 0 and y_current < 800 and y_current > 0:
+            while Utils.distance_real((x_current, y_current), (x_next, y_next)) > robot.width and x_current < Constant.WIDTH and x_current > 0 and y_current < Constant.WIDTH and y_current > 0:
          
-                if x_current + 8 >= 800 or x_current - 8 <= 0 or y_current + 8 >= 800 or y_current - 8 <= 0:
+                if x_current + Constant.GAP >= Constant.WIDTH or x_current - Constant.GAP <= 0 or y_current + Constant.GAP >= Constant.WIDTH or y_current - Constant.GAP <= 0:
                     break
                 
-                if Utils.distance_real((x_current, y_current), (robot.x, robot.y)) < 28 and math.fabs(obs.theta - robot.theta) > math.pi / 2*0.8 and math.fabs(obs.theta - robot.theta) < math.pi / 2*1.2:
+                if Utils.distance_real((x_current, y_current), (robot.x, robot.y)) < robot.width*2 and math.fabs(obs.theta - robot.theta) > math.pi / 2*0.8 and math.fabs(obs.theta - robot.theta) < math.pi / 2*1.2:
                     continue
                 temp_spot = MAP.grid[int(x_current // MAP.GAP)][int(y_current // MAP.GAP)]
                 if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
@@ -344,8 +362,8 @@ def replan(robot, list_obstacles, MAP):
                     restore_grid.append(temp_spot)
                     MAP.grid[int((x_current - step_horizontal) // MAP.GAP)][int((y_current + step_horizontal) // MAP.GAP)].make_dynamic_obs()
 
-                x_current += 16 * math.cos(obs.theta)
-                y_current += 16 * math.sin(obs.theta)
+                x_current += Constant.GAP * math.cos(obs.theta)
+                y_current += Constant.GAP * math.sin(obs.theta)
     # draw(win, MAP.grid, ROWS, WIDTH)
 
 
@@ -454,8 +472,8 @@ def find_path_with_kinematic(robot, MAP, start_pos_current, end_pos_current):
     #     dubins_path_final = []
     #     for i in range(len(angle)):
     #         # for step in range(1, maxStep, 5):
-    #         x_temp = x_current + (16) * math.cos(theta_current + angle[i])
-    #         y_temp = y_current + (16) * math.sin(theta_current + angle[i])
+    #         x_temp = x_current + (Constant.GAP) * math.cos(theta_current + angle[i])
+    #         y_temp = y_current + (Constant.GAP) * math.sin(theta_current + angle[i])
     #         # pygame.draw.line(MAP.WIN, (255, 0, 0), (x_current, y_current), (x_temp, y_temp), 2)
     #         # pygame.display.update()
 
@@ -686,11 +704,13 @@ def Astar_voronoi_find_path(robot, map , start_pos_current, segments ):
     start_pos = start_pos_current.get_pos()
     end_pos = map.end.get_pos()
 
-    # point nearest start
-    start_point = None
+    # point nearest start+
+    start_point = None 
     dis = float(1000000)
     for point in point_voronoi:
-        if Utils.distance_real(start, point) < dis:
+        if Utils.distance_real(start, point) < dis \
+            and map.grid[int(point[0] // map.GAP)][int(point[1] // map.GAP)].is_barrier() == False \
+                and map.grid[int(point[0] // map.GAP)][int(point[1] // map.GAP)].is_dynamic_obs() == False :
             dis = Utils.distance_real(start, point)
             start_point = point
 
@@ -738,7 +758,6 @@ def Astar_voronoi_find_path(robot, map , start_pos_current, segments ):
     return path
     
 def Astar_voronoi_kinematic(robot, MAP, start_pos_current, segments):
-
     path = Astar_voronoi_find_path(robot, MAP, start_pos_current, segments)
 
     end = MAP.end.get_real_pos(MAP.GAP)
@@ -755,11 +774,11 @@ def Astar_voronoi_kinematic(robot, MAP, start_pos_current, segments):
     #     angle.append(-i * one_degree)
 
     # x_current, y_current = robot.x, robot.y
-    # x_current = x_current + 16 * math.cos(robot.theta)
-    # y_current = y_current + 16 * math.sin(robot.theta)
+    # x_current = x_current + Constant.GAP * math.cos(robot.theta)
+    # y_current = y_current + Constant.GAP * math.sin(robot.theta)
     # if MAP.grid[int(x_current // MAP.GAP)][int(y_current // MAP.GAP)].is_barrier():
-    #     x_current = x_current - 16 * math.cos(robot.theta)
-    #     y_current = y_current - 16 * math.sin(robot.theta)
+    #     x_current = x_current - Constant.GAP * math.cos(robot.theta)
+    #     y_current = y_current - Constant.GAP * math.sin(robot.theta)
 
     # theta_current = robot.theta
 
@@ -779,7 +798,7 @@ def Astar_voronoi_kinematic(robot, MAP, start_pos_current, segments):
     #         for step in range(1, maxStep, 8):
     #             x_temp = x_current + (step*2 + 8) * math.cos(theta_current + angle[i])
     #             y_temp = y_current + (step*2 + 8) * math.sin(theta_current + angle[i])
-    #             if x_temp >= 800 or x_temp <= 0 or y_temp >= 800 or y_temp <= 0:
+    #             if x_temp >= Constant.WIDTH or x_temp <= 0 or y_temp >= Constant.WIDTH or y_temp <= 0:
     #                 break
 
     #             temp_spot = MAP.grid[int(x_temp // MAP.GAP)][int(y_temp // MAP.GAP)]
@@ -821,7 +840,7 @@ def Astar_voronoi_kinematic(robot, MAP, start_pos_current, segments):
             path.insert(i+1, (x_temp, y_temp))
 
     path.append(end)
-    if len(path) <= 3:
+    if len(path) <= 5:
         return path
     point_control = np.array(path)
     x = point_control[:, 0]
@@ -844,14 +863,14 @@ def replanV2(robot, list_obstacles, MAP):
             step_horizontal = obs.d * 2 /3
             x_next = obs.x + 5 * obs.velocity * math.cos(obs.theta)
             y_next = obs.y + 5 * obs.velocity * math.sin(obs.theta)
-            if x_next <= 8:
-                x_next = 9
-            if x_next >= 792:
-                x_next = 790
-            if y_next <= 8:
-                y_next = 9
-            if y_next >= 792:
-                y_next = 790
+            if x_next <= Constant.GAP / 2:
+                x_next = Constant.GAP / 2 + 1
+            if x_next >= Constant.WIDTH - Constant.GAP / 2:
+                x_next = Constant.WIDTH - Constant.GAP / 2 - 1
+            if y_next <= Constant.GAP / 2:
+                y_next = Constant.GAP / 2 + 1
+            if y_next >= Constant.WIDTH - Constant.GAP / 2:
+                y_next = Constant.WIDTH - Constant.GAP / 2 - 1
 
             x_current = int(obs.x)
             y_current = int(obs.y)
@@ -859,12 +878,12 @@ def replanV2(robot, list_obstacles, MAP):
             x_next = int(x_next)
             y_next = int(y_next)
 
-            while Utils.distance_real((x_current, y_current), (x_next, y_next)) > 15 and x_current < 800 and x_current > 0 and y_current < 800 and y_current > 0:
+            while Utils.distance_real((x_current, y_current), (x_next, y_next)) > robot.width and x_current < Constant.WIDTH and x_current > 0 and y_current < Constant.WIDTH and y_current > 0:
 
-                if x_current + 8 >= 800 or x_current - 8 <= 0 or y_current + 8 >= 800 or y_current - 8 <= 0:
+                if x_current + Constant.GAP >= Constant.WIDTH or x_current - Constant.GAP <= 0 or y_current + Constant.GAP >= Constant.WIDTH or y_current - Constant.GAP <= 0:
                     break
 
-                if Utils.distance_real((x_current, y_current), (robot.x, robot.y)) < 32 and math.fabs(obs.theta - robot.theta) > math.pi / 2*0.8 and math.fabs(obs.theta - robot.theta) < math.pi / 2*1.2:
+                if Utils.distance_real((x_current, y_current), (robot.x, robot.y)) < robot.width*2 and math.fabs(obs.theta - robot.theta) > math.pi / 2*0.8 and math.fabs(obs.theta - robot.theta) < math.pi / 2*1.2:
                     continue
 
                 temp_spot = MAP.grid[int(x_current // MAP.GAP)][int(y_current // MAP.GAP)]
@@ -906,8 +925,8 @@ def replanV2(robot, list_obstacles, MAP):
                     # temp_spot.make_dynamic_obs()
 
 
-                x_current += 16 * math.cos(obs.theta)
-                y_current += 16 * math.sin(obs.theta)
+                x_current += Constant.GAP * math.cos(obs.theta)
+                y_current += Constant.GAP * math.sin(obs.theta)
 
 
 
@@ -954,14 +973,14 @@ def replan_svm(robot, list_obstacles, MAP):
             # print("angle", obs.theta, "atan2", math.atan2(obs.y - robot.y, obs.x - robot.x), "angle - atan2", obs.theta - math.atan2(obs.y - robot.y, obs.x - robot.x))
             x_next = obs.x + 5 * obs.velocity * math.cos(obs.theta)
             y_next = obs.y + 5 * obs.velocity * math.sin(obs.theta)
-            if x_next <= 8:
-                x_next = 9
-            if x_next >= 792:
-                x_next = 790
-            if y_next <= 8:
-                y_next = 9
-            if y_next >= 792:
-                y_next = 790
+            if x_next <= Constant.GAP / 2:
+                x_next = Constant.GAP / 2 + 1
+            if x_next >= Constant.WIDTH - Constant.GAP / 2:
+                x_next = Constant.WIDTH - Constant.GAP / 2 - 1
+            if y_next <= Constant.GAP / 2:
+                y_next = Constant.GAP / 2 + 1
+            if y_next >= Constant.WIDTH - Constant.GAP / 2:
+                y_next = Constant.WIDTH - Constant.GAP / 2 - 1
 
             x_current = int(obs.x)
             y_current = int(obs.y)
@@ -969,12 +988,12 @@ def replan_svm(robot, list_obstacles, MAP):
             x_next = int(x_next)
             y_next = int(y_next)
 
-            while Utils.distance_real((x_current, y_current), (x_next, y_next)) > 15 and x_current < 800 and x_current > 0 and y_current < 800 and y_current > 0:
+            while Utils.distance_real((x_current, y_current), (x_next, y_next)) > robot.width and x_current < Constant.WIDTH and x_current > 0 and y_current < Constant.WIDTH and y_current > 0:
          
-                if x_current + 8 >= 800 or x_current - 8 <= 0 or y_current + 8 >= 800 or y_current - 8 <= 0:
+                if x_current + Constant.GAP >= Constant.WIDTH or x_current - Constant.GAP <= 0 or y_current + Constant.GAP >= Constant.WIDTH or y_current - Constant.GAP <= 0:
                     break
                 
-                if Utils.distance_real((x_current, y_current), (robot.x, robot.y)) < 28 and math.fabs(obs.theta - robot.theta) > math.pi / 2*0.8 and math.fabs(obs.theta - robot.theta) < math.pi / 2*1.2:
+                if Utils.distance_real((x_current, y_current), (robot.x, robot.y)) < robot.width*2 and math.fabs(obs.theta - robot.theta) > math.pi / 2*0.8 and math.fabs(obs.theta - robot.theta) < math.pi / 2*1.2:
                     continue
                 temp_spot = MAP.grid[int(x_current // MAP.GAP)][int(y_current // MAP.GAP)]
                 if not temp_spot.is_barrier() and not temp_spot.is_dynamic_obs():
@@ -1013,8 +1032,8 @@ def replan_svm(robot, list_obstacles, MAP):
                     restore_grid.append(temp_spot)
                     MAP.grid[int((x_current - step_horizontal) // MAP.GAP)][int((y_current + step_horizontal) // MAP.GAP)].make_dynamic_obs()
 
-                x_current += 16 * math.cos(obs.theta)
-                y_current += 16 * math.sin(obs.theta)
+                x_current += Constant.GAP * math.cos(obs.theta)
+                y_current += Constant.GAP * math.sin(obs.theta)
     
     obstacle = [spot.get_real_pos(MAP.GAP) for row in MAP.grid for spot in row if (spot.is_barrier() or spot.is_dynamic_obs())]
     robot.KDTree = KDTree(obstacle)
@@ -1317,7 +1336,7 @@ def SVM_path_planning(start, end, grid, gap):
         for i in range(len(angle)):
             x_temp = path_svm[-1][0] + gap * math.cos(theta_current + angle[i])
             y_temp = path_svm[-1][1] + gap * math.sin(theta_current + angle[i])
-            if x_temp >= 800 or x_temp <= 0 or y_temp >= 800 or y_temp <= 0:
+            if x_temp >= Constant.WIDTH or x_temp <= 0 or y_temp >= Constant.WIDTH or y_temp <= 0:
                 continue
             temp_spot = grid[int(x_temp // gap)][int(y_temp // gap)]
             if not temp_spot.is_barrier():

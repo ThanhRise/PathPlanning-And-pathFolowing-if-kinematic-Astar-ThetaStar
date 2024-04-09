@@ -18,14 +18,14 @@ class DynamicObstacle:
         if x < 0:
             x = - x
             self.theta = math.pi - self.theta
-        if x > 800 - 1:
-            x = 800 - 1 - (x - 800 + 1)
+        if x > Constant.WIDTH - 1:
+            x = Constant.WIDTH - 1 - (x - Constant.WIDTH + 1)
             self.theta = math.pi - self.theta
         if y < 0:
             y = - y
             self.theta = - self.theta
-        if y > 800 - 1:
-            y = 800 - 1 - (y - 800 + 1)
+        if y > Constant.WIDTH - 1:
+            y = Constant.WIDTH - 1 - (y - Constant.WIDTH + 1)
             self.theta = - self.theta
         # change theta when x, y is on the barrier
         if self.theta < 0:
@@ -34,30 +34,30 @@ class DynamicObstacle:
             self.theta = self.theta - math.pi * 2
         theta = self.theta
         
-        if grid[int(x / 16)][int(y / 16)].is_barrier() or grid[int((x + self.d) / 16)][int(y / 16)].is_barrier() or grid[int(x / 16)][int((y + self.d) / 16)].is_barrier() or grid[int((x + self.d) / 16)][int((y + self.d) / 16)].is_barrier() \
-            or grid[int((x - self.d)/ 16)][int(y / 16)].is_barrier() or grid[int(x / 16)][int((y - self.d) / 16)].is_barrier() or grid[int((x - self.d) / 16)][int((y - self.d) / 16)].is_barrier() or grid[int((x + self.d) / 16)][int((y - self.d) / 16)].is_barrier() or grid[int((x - self.d) / 16)][int((y + self.d) / 16)].is_barrier():
+        if grid[int(x / Constant.GAP)][int(y / Constant.GAP)].is_barrier() or grid[int((x + self.d) / Constant.GAP)][int(y / Constant.GAP)].is_barrier() or grid[int(x / Constant.GAP)][int((y + self.d) / Constant.GAP)].is_barrier() or grid[int((x + self.d) / Constant.GAP)][int((y + self.d) / Constant.GAP)].is_barrier() \
+            or grid[int((x - self.d)/ Constant.GAP)][int(y / Constant.GAP)].is_barrier() or grid[int(x / Constant.GAP)][int((y - self.d) / Constant.GAP)].is_barrier() or grid[int((x - self.d) / Constant.GAP)][int((y - self.d) / Constant.GAP)].is_barrier() or grid[int((x + self.d) / Constant.GAP)][int((y - self.d) / Constant.GAP)].is_barrier() or grid[int((x - self.d) / Constant.GAP)][int((y + self.d) / Constant.GAP)].is_barrier():
             if self.theta > 0 and self.theta < math.pi / 2:
                 theta = math.pi - self.theta
-                if grid[int(x /16)][int((y+ self.d) / 16)].is_barrier() or grid[int((x - self.d)/16)][int((y + self.d) / 16)].is_barrier() :
-                # if grid[int(x /16)][int((y+ self.d) / 16)].is_barrier():
+                if grid[int(x /Constant.GAP)][int((y+ self.d) / Constant.GAP)].is_barrier() or grid[int((x - self.d)/Constant.GAP)][int((y + self.d) / Constant.GAP)].is_barrier() :
+                # if grid[int(x /Constant.GAP)][int((y+ self.d) / Constant.GAP)].is_barrier():
                     theta =  - self.theta
             
             if self.theta > math.pi / 2 and self.theta < math.pi:
                 theta = math.pi - self.theta 
-                if grid[int(x / 16)][int((y + self.d)/16)].is_barrier() or grid[int((x + self.d) / 16)][int((y + self.d)/16)].is_barrier():
-                # if grid[int(x /16)][int((y+ self.d) / 16)].is_barrier():
+                if grid[int(x / Constant.GAP)][int((y + self.d)/Constant.GAP)].is_barrier() or grid[int((x + self.d) / Constant.GAP)][int((y + self.d)/Constant.GAP)].is_barrier():
+                # if grid[int(x /Constant.GAP)][int((y+ self.d) / Constant.GAP)].is_barrier():
                     theta =  - self.theta   
             
             if self.theta > math.pi and self.theta < math.pi * 3 / 2:
                 theta = math.pi - self.theta
-                if grid[int((x) / 16)][int((y - self.d)/16)].is_barrier() or grid[int((x + self.d) / 16)][int((y - self.d)/16)].is_barrier():
-                # if grid[int((x) / 16)][int((y - self.d)/16)].is_barrier():
+                if grid[int((x) / Constant.GAP)][int((y - self.d)/Constant.GAP)].is_barrier() or grid[int((x + self.d) / Constant.GAP)][int((y - self.d)/Constant.GAP)].is_barrier():
+                # if grid[int((x) / Constant.GAP)][int((y - self.d)/Constant.GAP)].is_barrier():
                     theta = - self.theta
                 
             if self.theta > math.pi * 3 / 2 and self.theta < math.pi * 2:
                 theta = math.pi - self.theta
-                if grid[int((x)/16)][int((y- self.d) / 16)].is_barrier() or grid[int((x - self.d)/16)][int((y -self.d) / 16)].is_barrier():
-                # if grid[int((x) / 16)][int((y - self.d)/16)].is_barrier():
+                if grid[int((x)/Constant.GAP)][int((y- self.d) / Constant.GAP)].is_barrier() or grid[int((x - self.d)/Constant.GAP)][int((y -self.d) / Constant.GAP)].is_barrier():
+                # if grid[int((x) / Constant.GAP)][int((y - self.d)/Constant.GAP)].is_barrier():
                     theta = - self.theta
 
             if self.theta == math.pi or self.theta == 0:

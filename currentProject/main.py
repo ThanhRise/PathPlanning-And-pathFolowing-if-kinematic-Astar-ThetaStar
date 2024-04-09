@@ -73,9 +73,13 @@ def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_
     robot.pathRb = find_path_with_kinematic(robot=robot, MAP=MAP, start_pos_current=MAP.start, end_pos_current=MAP.end)
 
         
-    # regions, robot.segments = partition_environment(MAP)
-    # robot.segments = [(p1, p2) for p1, p2 in robot.segments if Utils.line_of_sight((int(p1[0]/MAP.GAP), int(p1[1]/MAP.GAP)), (int(p2[0]/MAP.GAP), int(p2[1]/MAP.GAP)), MAP.grid)]
-
+    regions, robot.segments = partition_environment(MAP)
+    robot.segments = [(p1, p2) for p1, p2 in robot.segments if Utils.line_of_sight((int(p1[0]/MAP.GAP), int(p1[1]/MAP.GAP)), (int(p2[0]/MAP.GAP), int(p2[1]/MAP.GAP)), MAP.grid)]
+    for segment in robot.segments:
+        p1, p2 = segment
+        pygame.draw.line(MAP.WIN, Constant.YELLOW, p1, p2, 3)
+    pygame.display.update()
+    time.sleep(1000)
     # robot.pathVoronoi = Astar_voronoi_kinematic(robot, MAP, MAP.start, robot.segments)
     # robot.pathRb = robot.pathVoronoi
 
