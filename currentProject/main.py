@@ -35,25 +35,39 @@ def path_planing(robot_move_thread, dynamic_obstacle_move_thread, sensor_detect_
     global robot, MAP, planed, run
     MAP.make_barrier_edge()
     pygame.display.update()
-
-    # Astar_plan = Astar_find_path_in_grid(MAP.start, MAP.end, MAP.grid)
-    # for i in range(len(Astar_plan) - 1):
-    #     pygame.draw.line(
-    #         MAP.WIN, Constant.RED, Astar_plan[i].get_real_pos(MAP.GAP), Astar_plan[i + 1].get_real_pos(MAP.GAP), 3)
-    # path_test, obs1, obs2 = SVM_path_planning(MAP.start, MAP.end, MAP.grid, MAP.GAP)
-    # # print("path_test", path_test)
-    # # path_test = [MAP.grid[int(spot[0])][int(spot[1])] for spot in path_test if spot[0] >= 0 and spot[0] < MAP.ROWS and spot[1] >= 0 and spot[1] < MAP.ROWS]
-    # # path_test = [spot.get_real_pos(MAP.GAP) for spot in path_test]
-    # for i in range(len(path_test) - 1):
-    #     pygame.draw.line(
-    #         MAP.WIN, Constant.BLUE, path_test[i], path_test[i + 1], 3)
-    # # draw obs
-    # for obs in obs1:
-    #     pygame.draw.circle(MAP.WIN, Constant.RED, (obs[0]* MAP.GAP, obs[1]* MAP.GAP), 5)
-    # for obs in obs2:
-    #     pygame.draw.circle(MAP.WIN, Constant.GREEN, (obs[0]* MAP.GAP, obs[1]* MAP.GAP), 5)
+    
+    # ==================================================================================================
+    # last_time = pygame.time.get_ticks()
+    # robot.distance_to_end = BFS_Astar_for_distance_to_end(MAP.grid, MAP.start, MAP.end)
+    # print("time BFS", pygame.time.get_ticks() - last_time)
+    # # draw distance to end
+    # for row in MAP.grid:
+    #     for spot in row:
+    #         if robot.distance_to_end[spot] != float('inf'):
+    #             color = (255 - 2*robot.distance_to_end[spot] , 0, 0)
+    #             pygame.draw.circle(MAP.WIN, color, spot.get_real_pos(MAP.GAP), 4)
     # pygame.display.update()
-    # time.sleep(100)
+    # time.sleep(1000)
+    # obstacle = [spot.get_real_pos(MAP.GAP)
+    #             for row in MAP.grid for spot in row if spot.is_barrier()]
+    # robot.KDTree = KDTree(obstacle)
+    # # for row in MAP.grid:
+    # #     for spot in row:
+    # #         x, y = spot.get_real_pos(MAP.GAP) 
+    # #         nearest_obstacle_dist, _ = robot.KDTree.query([x,y])
+    # #         nearest_obstacle_dist  = min(nearest_obstacle_dist * 2.5, 255)
+    # #         color = (nearest_obstacle_dist, nearest_obstacle_dist, nearest_obstacle_dist)
+    # #         pygame.draw.circle(MAP.WIN, color, (x, y), 4)
+    # for i in range(2, 1000, 2):
+    #     for j in range(2, 1000, 2):
+    #         x, y = i, j
+    #         nearest_obstacle_dist, _ = robot.KDTree.query([x,y])
+    #         nearest_obstacle_dist  = min(nearest_obstacle_dist * 2.5, 255)
+    #         color = (nearest_obstacle_dist, nearest_obstacle_dist, nearest_obstacle_dist)
+    #         pygame.draw.circle(MAP.WIN, color, (x, y), 1)
+    # pygame.display.update()
+    # time.sleep(1000)
+    # ==================================================================================================
 
     init_time = pygame.time.get_ticks()
     init_satety_score = 0
@@ -288,7 +302,7 @@ def display():
         #     p1, p2 = segment
         #     pygame.draw.line(MAP.WIN, Constant.YELLOW, p1, p2, 3)
         
-        # for i in range(len(robot.pathVoronoi) - 1):
+        # for i in range(len(robot.pathVoronoi) - 1): 
         #     pygame.draw.line(
         #         MAP.WIN, Constant.RED, robot.pathVoronoi[i], robot.pathVoronoi[i + 1], 2)
 

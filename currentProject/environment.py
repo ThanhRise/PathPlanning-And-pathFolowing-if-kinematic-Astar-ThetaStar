@@ -79,7 +79,7 @@ class Environment:
                     if grid[row][spot].is_barrier():
                         grid[row][spot].draw(self.WIN)
                     else:
-                        grid[row][spot].draw(self.WIN, Constant.GREY)
+                        grid[row][spot].draw(self.WIN, Constant.WHITE)
                 else:
                     grid[row][spot].draw(self.WIN)
         

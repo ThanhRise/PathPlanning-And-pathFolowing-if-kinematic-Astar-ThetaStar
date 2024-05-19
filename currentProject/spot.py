@@ -130,6 +130,37 @@ class Spot:
                 and ((not grid[self.row - 1][self.col].is_barrier() and not grid[self.row - 1][self.col].is_dynamic_obs()) or (not grid[self.row][self.col - 1].is_barrier() and not grid[self.row][self.col - 1].is_dynamic_obs())):
             self.neighbors_distance.append(
                 (grid[self.row - 1][self.col - 1], distance_diagonal))
+            
+    def update_neighbors_one_for_all(self, grid):
+        self.neighbors_distance = []
+        distance_diagonal = math.sqrt(2)
+        if self.row < self.total_rows - 1:
+            self.neighbors_distance.append((grid[self.row + 1][self.col], 1))
+
+        if self.row > 0 :
+            self.neighbors_distance.append((grid[self.row - 1][self.col], 1))
+
+        if self.col < self.total_rows - 1 :
+            self.neighbors_distance.append((grid[self.row][self.col + 1], 1))
+
+        if self.col > 0 :
+            self.neighbors_distance.append((grid[self.row][self.col - 1], 1))
+
+        if (self.row < self.total_rows - 1) and (self.col < self.total_rows - 1):
+            self.neighbors_distance.append(
+                (grid[self.row + 1][self.col + 1], distance_diagonal))
+
+        if self.row > 0 and self.col < self.total_rows - 1 :
+            self.neighbors_distance.append(
+                (grid[self.row - 1][self.col + 1], distance_diagonal))
+
+        if self.row < self.total_rows - 1 and self.col > 0 :
+            self.neighbors_distance.append(
+                (grid[self.row + 1][self.col - 1], distance_diagonal))
+
+        if self.row > 0 and self.col > 0 :
+            self.neighbors_distance.append(
+                (grid[self.row - 1][self.col - 1], distance_diagonal))
 
     def update_neighbors_with_angle(self, grid, angle):
         # 10 is right
@@ -199,8 +230,6 @@ class Spot:
                 self.neighbors_distance_angleRobot.append(
                     (grid[self.row - 1][self.col + 1], distance_diagonal, "10"))
 
-
-        pass
 
     def __lt__(self, other):
         return False

@@ -91,7 +91,8 @@ class Utils:
                 if MAP.grid[int((x + d)/MAP.GAP)][int(y/MAP.GAP)].is_barrier() == False or \
                     MAP.grid[int(x/MAP.GAP)][int((y+ d)/MAP.GAP)].is_barrier() == False or \
                         MAP.grid[int((x - d)/MAP.GAP)][int(y/MAP.GAP)].is_barrier() == False or \
-                            MAP.grid[int(x/MAP.GAP)][int((y - d)/MAP.GAP)].is_barrier() == False:
+                            MAP.grid[int(x/MAP.GAP)][int((y - d)/MAP.GAP)].is_barrier() == False or \
+                            Utils.distance_real((x, y), (MAP.start.get_real_pos(MAP.GAP))) > 100:
                     break
 
             theta = random.uniform(0, 360)

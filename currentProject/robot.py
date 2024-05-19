@@ -44,6 +44,8 @@ class Robot:
         self.grid_in_vison_robot = []
         self.obstecls = []
         self.near_obstacle = []
+        self.is_algorithm = None
+        self.svm_clf = None
         one_degree = math.pi / 180
         self.angle.append(0)
         for i in range(5, 91 , 9):
@@ -147,7 +149,7 @@ class Robot:
         x = self.x + ((vl + vr)/2)*math.cos(theta)*dt
         y = self.y + ((vl + vr)/2)*math.sin(theta)*dt
         if x > Constant.WIDTH or x < 0 or y > Constant.WIDTH or y < 0:
-            print("out of range")
+            # print("out of range")
             return None, None, None
         
         # x_next = x + 16 * math.cos(theta)
@@ -227,9 +229,9 @@ class Robot:
         spot = grid[row][col]
         return spot, x, y
 
-    def find_next_spot(self, MAP, back=False, is_algorithm="KDTree"):
+    def find_next_spot(self, MAP, back=False):
         current = self.x, self.y
-        if is_algorithm == "KDTree_non_vision" or is_algorithm == "Voronoi_non_vision":
+        if self.is_algorithm == "KDTree_non_vision" or self.is_algorithm == "Voronoi_non_vision" or self.is_algorithm == "Svm_non_vision":
             spot_current = self.grid_in_vison_robot[int(self.x // MAP.GAP)][int(self.y // MAP.GAP)]
         else:
             spot_current = MAP.grid[int(self.x // MAP.GAP)][int(self.y // MAP.GAP)]
@@ -258,13 +260,10 @@ class Robot:
                         # time_step = 1500
                         # velocity = 15
 
-                        if is_algorithm == "KDTree_non_vision":
+                        if self.is_algorithm == "KDTree_non_vision" or self.is_algorithm == "Voronoi_non_vision" or self.is_algorithm == "Svm_non_vision":
                             spot, x, y = self.find_spot_with_angle(
                                 self.grid_in_vison_robot, self.angle[i], time_step, velocity, is_near_obstacle)
-                        if is_algorithm == "Voronoi_non_vision":
-                            spot, x, y = self.find_spot_with_angle(
-                                self.grid_in_vison_robot, self.angle[i], time_step, velocity)
-                        if is_algorithm == "KDTree vision" or is_algorithm == "Voronoi vision":
+                        if self.is_algorithm == "KDTree vision" or self.is_algorithm == "Voronoi vision":
                             spot, x, y = self.find_spot_with_angle(
                                 MAP.grid , self.angle[i], time_step, velocity)
 
@@ -277,7 +276,7 @@ class Robot:
                 angle_selected = 0
                 u = 0
                 # kd tree - non vison
-                if is_algorithm == "KDTree_non_vision":
+                if self.is_algorithm == "KDTree_non_vision":
                     if back == False:
                         min_spot = None
                         obstacle_dist = 0
@@ -317,7 +316,7 @@ class Robot:
                                 u = neighbors[i][5]
 
                 # KD tree - all map
-                if is_algorithm == "KDTree vision":
+                if self.is_algorithm == "KDTree vision":
                     min_spot = None
                     angle_selected = None
                     obstacle_dist = 0
@@ -348,7 +347,7 @@ class Robot:
                             self.u = neighbors[i][5]
 
                 # voronoi - non vison
-                if is_algorithm == "Voronoi_non_vision" or is_algorithm == "Voronoi vision":
+                if self.is_algorithm == "Voronoi_non_vision" or self.is_algorithm == "Voronoi vision" :
                     if back == False:
                         min_spot = None
                         obstacle_dist = 0
@@ -379,7 +378,32 @@ class Robot:
                                 time_step_re = neighbors[i][4]
                                 u = neighbors[i][5]
 
-
+                if self.is_algorithm == "Svm_non_vision" or self.is_algorithm == "Svm vision":
+                    if back == False:
+                        min_spot = None
+                        obstacle_dist = 0
+                        f_cost_best = 100000000
+                        for i in range(len(neighbors)):
+                            f_cost = np.abs(self.svm_clf.decision_function([(neighbors[i][1], neighbors[i][2])])) + np.log(self.distance_to_end[neighbors[i][0]] + 1)
+                            if f_cost < f_cost_best:
+                                f_cost_best = f_cost
+                                min_spot = neighbors[i][1], neighbors[i][2]
+                                angle_selected = neighbors[i][3]
+                                time_step_re = neighbors[i][4]
+                                u = neighbors[i][5]
+                    else:
+                        min_spot = None
+                        obstacle_dist = 0
+                        f_cost_best = 0
+                        for i in range(len(neighbors)):
+                            dist = np.abs(self.svm_clf.decision_function([(neighbors[i][1], neighbors[i][2])]))
+                            f_cost = dist
+                            if f_cost > f_cost_best:
+                                f_cost_best = f_cost
+                                min_spot = neighbors[i][1], neighbors[i][2]
+                                angle_selected = neighbors[i][3]
+                                time_step_re = neighbors[i][4]
+                                u = neighbors[i][5]
 
                 self.u = u
                 self.time_step = time_step_re
@@ -419,19 +443,42 @@ class Robot:
 
     def detect_obstacle(self, MAP):
         
-        flag = False
-        # reset dynamic obstacles
-        for row in range(MAP.ROWS):
-            for col in range(MAP.ROWS):
-                if self.grid_in_vison_robot[row][col].is_dynamic_obs() or self.grid_in_vison_robot[row][col].is_future_dynamic_obs():
-                    self.grid_in_vison_robot[row][col].reset()
+        # flag = False
+        # # reset dynamic obstacles
+        # last_time = pygame.time.get_ticks()
+        # for row in range(MAP.ROWS):
+        #     for col in range(MAP.ROWS):
+        #         if self.grid_in_vison_robot[row][col].is_dynamic_obs() or self.grid_in_vison_robot[row][col].is_future_dynamic_obs():
+        #             self.grid_in_vison_robot[row][col].reset()
 
-        for row in range(MAP.ROWS):
-            for col in range(MAP.ROWS):
-                if Utils.distance_real((self.x, self.y), self.grid_in_vison_robot[row][col].get_real_pos(MAP.GAP)) < 100:
-                    if MAP.grid[row][col].is_barrier() and not self.grid_in_vison_robot[row][col].is_barrier():
-                        self.grid_in_vison_robot[row][col].make_barrier()
-                        flag = True
+        # for row in range(MAP.ROWS):
+        #     for col in range(MAP.ROWS):
+        #         if Utils.distance_real((self.x, self.y), self.grid_in_vison_robot[row][col].get_real_pos(MAP.GAP)) < 100:
+        #             if MAP.grid[row][col].is_barrier() and not self.grid_in_vison_robot[row][col].is_barrier():
+        #                 self.grid_in_vison_robot[row][col].make_barrier()
+        #                 flag = True
+        # print('time to reset dynamic obstacles: ', pygame.time.get_ticks() - last_time)
+        # last_time = pygame.time.get_ticks()
+        current_pos = self.grid_in_vison_robot[int(self.x // MAP.GAP)][int(self.y // MAP.GAP)]
+        visited = {spot:False for row in self.grid_in_vison_robot for spot in row}
+        queue = Queue()
+        queue.put(current_pos)
+        visited[current_pos] = True
+        while not queue.empty():
+            current = queue.get()
+            for neighbor, _ in current.neighbors_distance:
+                if visited[neighbor]:
+                    continue
+                if Utils.distance_real((self.x, self.y), neighbor.get_real_pos(MAP.GAP)) > Constant.OBSTACLE_DETECTION_DISTANCE + 2*Constant.GAP:
+                    continue
+                if neighbor.is_dynamic_obs() or neighbor.is_future_dynamic_obs():
+                    neighbor.reset()
+                if MAP.grid[int(neighbor.row)][int(neighbor.col)].is_barrier() and not neighbor.is_barrier():
+                    neighbor.make_barrier()
+                visited[neighbor] = True
+                queue.put(neighbor)
+ 
+        # print('time to reset dynamic obstacles: ', pygame.time.get_ticks() - last_time)
 
         # dynamic obstacles
         for obs in self.dynamic_obstacles_replan:
@@ -536,29 +583,39 @@ class Robot:
         # ------------------------------------------------------------------#
         # Use KDTree to find the nearest obstacle
         # ------------------------------------------------------------------#
+        
         self.obstacle = [spot.get_real_pos(MAP.GAP)
             for row in self.grid_in_vison_robot for spot in row if spot.is_barrier() or spot.is_dynamic_obs() or spot.is_future_dynamic_obs()]
+        # last_time = pygame.time.get_ticks()
         self.KDTree = KDTree(self.obstacle)
+        # print('time to build KDTree: ', pygame.time.get_ticks() - last_time)
         # ------------------------------------------------------------------#
         
         # ------------------------------------------------------------------#
         # Use Voronoi to find the path
-        MAP.voronoi = Voronoi(self.obstacle)
-        segments = []
-        for i, j in MAP.voronoi.ridge_vertices:
-            if i >= 0 and j >= 0:
-                p1 = (MAP.voronoi.vertices[i][0], MAP.voronoi.vertices[i][1])
-                p2 = (MAP.voronoi.vertices[j][0], MAP.voronoi.vertices[j][1])
-                segments.append((p1, p2))
+        if self.is_algorithm == "Voronoi_non_vision" or self.is_algorithm == "Voronoi vision":  
+            # last_time = pygame.time.get_ticks()
+            MAP.voronoi = Voronoi(self.obstacle)
+            segments = []
+            for i, j in MAP.voronoi.ridge_vertices:
+                if i >= 0 and j >= 0:
+                    p1 = (MAP.voronoi.vertices[i][0], MAP.voronoi.vertices[i][1])
+                    p2 = (MAP.voronoi.vertices[j][0], MAP.voronoi.vertices[j][1])
+                    segments.append((p1, p2))
 
-        for i, segment in enumerate(segments):
-            segments[i] = ((int(segment[0][0]), int(segment[0][1])), (int(segment[1][0]), int(segment[1][1])))
-        self.segments = segments
-        self.segments = [(p1, p2) for p1, p2 in self.segments if Utils.line_of_sight((int(p1[0]/MAP.GAP), int(p1[1]/MAP.GAP)), (int(p2[0]/MAP.GAP), int(p2[1]/MAP.GAP)), self.grid_in_vison_robot)]
-        start_pos = MAP.grid[int(self.x // MAP.GAP)][int(self.y // MAP.GAP)]
+            for i, segment in enumerate(segments):
+                segments[i] = ((int(segment[0][0]), int(segment[0][1])), (int(segment[1][0]), int(segment[1][1])))
+            self.segments = segments
+            self.segments = [(p1, p2) for p1, p2 in self.segments if Utils.line_of_sight((int(p1[0]/MAP.GAP), int(p1[1]/MAP.GAP)), (int(p2[0]/MAP.GAP), int(p2[1]/MAP.GAP)), self.grid_in_vison_robot)]
+            start_pos = MAP.grid[int(self.x // MAP.GAP)][int(self.y // MAP.GAP)]
 
-        self.pathRb = Astar_voronoi_kinematic(self, MAP, start_pos, self.segments)
-        # ------------------------------------------------------------------#
+            self.pathRb = Astar_voronoi_kinematic(self, MAP, start_pos, self.segments)
+            # print('time to build Voronoi: ', pygame.time.get_ticks() - last_time)
+            # ------------------------------------------------------------------#
+        if self.is_algorithm == "Svm_non_vision" or self.is_algorithm == "Svm vision":
+            start_pos = (int(self.x // MAP.GAP), int(self.y // MAP.GAP))
+            END_pos = (MAP.end.row, MAP.end.col)
+            self.svm_clf = SVM_path_planning(self, MAP, start_pos, END_pos, self.grid_in_vison_robot, MAP.GAP)
         self.near_obstacle = update_safety_spot(self.grid_in_vison_robot, self.obstacle, MAP)
         return True
 
@@ -566,7 +623,7 @@ class Robot:
         map.blit(self.rotated, self.rect)
 
     def trail(self, pos, map, color):
-        for i in range(0, len(self.trail_set) - 1):
-            pygame.draw.line(map, color, (self.trail_set[i][0], self.trail_set[i][1]),
-                             (self.trail_set[i+1][0], self.trail_set[i+1][1]), 3)
+        # for i in range(0, len(self.trail_set) - 1):
+        #     pygame.draw.line(map, color, (self.trail_set[i][0], self.trail_set[i][1]),
+        #                      (self.trail_set[i+1][0], self.trail_set[i+1][1]), 3)
         self.trail_set.append(pos)

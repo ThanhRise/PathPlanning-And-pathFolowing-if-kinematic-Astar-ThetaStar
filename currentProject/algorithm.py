@@ -9,6 +9,7 @@ import scipy.interpolate as interpolate
 from environment import Environment
 # from robot import Robot
 from queue import PriorityQueue
+from queue import Queue
 from dubinsPath import dubins_path_length
 from dubinsPath import Waypoint
 from scipy.spatial import Voronoi, voronoi_plot_2d
@@ -20,7 +21,7 @@ from sklearn import svm
 from matplotlib import pyplot as plt
 
 
-def BFS(grid, end_pos):
+def BFS(grid, end_pos): #not use
     # update the neighbor_distance of each node
     end_pos = grid[end_pos[0]][end_pos[1]]
     for row in grid:
@@ -40,7 +41,7 @@ def BFS(grid, end_pos):
     return distance
 
 
-def Partial_BFS(grid, start, end):
+def Partial_BFS(grid, start, end): # NOT USE
     # update the neighbor_distance of each node
     end_pos = grid[end[0]][end[1]]
     for row in grid:
@@ -140,6 +141,126 @@ def BFSv2(grid, start: Spot, angleStart):
                 # open_set.add((neighbor, angle))
     return distance
 
+def BFS_Astar_for_distance_to_end(grid, robot, start: Spot, end: Spot):
+    queue = PriorityQueue()
+    queue.put((0, start))
+    came_from = {}
+    g_score = {spot: float("inf") for row in grid for spot in row}
+    g_score[start] = 0
+    f_score = {spot: float("inf") for row in grid for spot in row}
+    f_score[start] = Utils.distance_spot(start.get_pos(), end.get_pos())
+    get_neighbors = {spot: False for row in grid for spot in row}
+    while not queue.empty():
+        current = queue.get()[1]
+        if current == end:
+            break
+        if get_neighbors[current] == False:
+            current.update_neighbors_distance(grid)
+            get_neighbors[current] = True
+        for neighbor, dist in current.neighbors_distance:
+            temp_g_score = g_score[current] + dist
+
+            if temp_g_score < g_score[neighbor]:
+                came_from[neighbor] = current
+                g_score[neighbor] = temp_g_score
+                f_score[neighbor] = temp_g_score + Utils.distance_spot(neighbor.get_pos(), end.get_pos())
+                queue.put((f_score[neighbor], neighbor))
+
+    if current != end:
+        if robot.is_algorithm == "Svm_non_vision":
+            return None, {spot: 10000 for row in grid for spot in row}
+        return {spot: 10000 for row in grid for spot in row}
+    path = []
+    distance = {spot: float("inf") for row in grid for spot in row}
+    i = 0
+    while current != start:
+        distance[current] = i
+        i += 1
+        path.append(current)
+        current = came_from[current]
+    path.append(start)
+    path.reverse()
+    len_path = len(path)
+    step = {spot: 0 for row in grid for spot in row}
+    queue = Queue()
+    for i in range(min(Constant.LEN_POS_TO_UPDATE_NEIGHBOR, len_path)):
+        queue.put(path[i])
+        step[path[i]] = 0
+    while not queue.empty():
+        current = queue.get()
+        if step[current] > Constant.NEIGHBOR_OF_SEARCH_IN_PATH_FOR_BFS:
+            continue
+        if get_neighbors[current] == False:
+            current.update_neighbors_distance(grid)
+            get_neighbors[current] = True
+        for neighbor, dist in current.neighbors_distance:
+            if distance[neighbor] > distance[current] + dist:
+                distance[neighbor] = distance[current] + dist
+                step[neighbor] = step[current] + 1
+                queue.put(neighbor)
+    if robot.is_algorithm == "Svm_non_vision" :
+        return path, distance
+    else:
+        return distance
+
+def BFS_Astar_V2(grid, robot, start: Spot, end: Spot):
+    queue = PriorityQueue()
+    queue.put((0, start))
+    came_from = {}
+    g_score = {spot: float("inf") for row in grid for spot in row}
+    g_score[start] = 0
+    f_score = {spot: float("inf") for row in grid for spot in row}
+    f_score[start] = Utils.distance_spot(start.get_pos(), end.get_pos())
+    while not queue.empty():
+        current = queue.get()[1]
+        if current == end:
+            break
+        for neighbor, dist in current.neighbors_distance:
+            if neighbor.is_barrier() or neighbor.is_dynamic_obs():
+                continue
+            temp_g_score = g_score[current] + dist
+
+            if temp_g_score < g_score[neighbor]:
+                came_from[neighbor] = current
+                g_score[neighbor] = temp_g_score
+                f_score[neighbor] = temp_g_score + Utils.distance_spot(neighbor.get_pos(), end.get_pos())
+                queue.put((f_score[neighbor], neighbor))
+
+    if current != end:
+        if robot.is_algorithm == "Svm_non_vision":
+            return None, {spot: 10000 for row in grid for spot in row}
+        return {spot: 10000 for row in grid for spot in row}
+    path = []
+    distance = {spot: float("inf") for row in grid for spot in row}
+    i = 0
+    while current != start:
+        distance[current] = i
+        i += 1
+        path.append(current)
+        current = came_from[current]
+    path.append(start)
+    path.reverse()
+    len_path = len(path)
+    step = {spot: 0 for row in grid for spot in row}
+    queue = Queue()
+    for i in range(min(Constant.LEN_POS_TO_UPDATE_NEIGHBOR, len_path)):
+        queue.put(path[i])
+        step[path[i]] = 0
+    while not queue.empty():
+        current = queue.get()
+        if step[current] > Constant.NEIGHBOR_OF_SEARCH_IN_PATH_FOR_BFS:
+            continue
+        for neighbor, dist in current.neighbors_distance:
+            if neighbor.is_barrier() or neighbor.is_dynamic_obs():
+                continue
+            if distance[neighbor] > distance[current] + dist:
+                distance[neighbor] = distance[current] + dist
+                step[neighbor] = step[current] + 1
+                queue.put(neighbor)
+    if robot.is_algorithm == "Svm_non_vision" :
+        return path, distance
+    else:
+        return distance
 
 def find_path(robot, MAP: Environment, start: Spot):
 
@@ -1045,66 +1166,44 @@ def replan_svm(robot, list_obstacles, MAP):
     #     spot.reset_to_prev_color()
     return path_svm, robot.KDTree, pygame.time.get_ticks()
 
-def Astar_find_path_in_grid(start, end, grid):
-    def h(p1, p2):
-        x1, y1 = p1
-        x2, y2 = p2
-        return abs(x1 - x2) + abs(y1 - y2)
-
-    for row in grid:
-        for spot in row:
-            spot.update_neighbors_distance(grid)
-
-    path = []
-
-
-    count = 0
-    open_set = PriorityQueue()
-    open_set.put((0, count, start))
+def Astar_find_path_in_grid(start_pos, end_pos, grid): # NOT USE
+    distance = {spot: float(1000000) for row in grid for spot in row}
+    get_neighbours = {spot: False for row in grid for spot in row}
     came_from = {}
-    g_score = {spot: float("inf") for row in grid for spot in row}
-    g_score[start] = 0
-    f_score = {spot: float("inf") for row in grid for spot in row}
-    f_score[start] = h(start.get_pos(), end.get_pos())
-
-    open_set_hash = {start}
-
-    while not open_set.empty():
-
-        current = open_set.get()[2]
-        open_set_hash.remove(current)
-
-        if current == end:
-            break
-
+    distance[end_pos] = 0
+    queue = []
+    queue.append(end_pos)
+    while queue:
+        current = queue.pop(0)
+        if get_neighbours[current] == False:
+            current.update_neighbors_distance(grid)
+            get_neighbours[current] = True
         for neighbor, dist in current.neighbors_distance:
-            temp_g_score = g_score[current] + dist
-
-            if temp_g_score < g_score[neighbor]:
+            if distance[current] + dist < distance[neighbor]:
                 came_from[neighbor] = current
-                g_score[neighbor] = temp_g_score
-                f_score[neighbor] = temp_g_score + h(neighbor.get_pos(), end.get_pos())
-                if neighbor not in open_set_hash:
-                    count += 1
-                    open_set.put((f_score[neighbor], count, neighbor))
-                    open_set_hash.add(neighbor)
-    if current == end:
-        print("found path")
-    path.append(current)
-    while current != start:
+                distance[neighbor] = distance[current] + dist
+                queue.append(neighbor)
+    path = []
+    path.append(start_pos)
+    current = start_pos
+    while current != end_pos:
+        if current not in came_from:
+            return [], distance
         current = came_from[current]
         path.append(current)
-    # path.append(start)
-    path.reverse()
-    return path
+    return path, distance
 
-def SVM_path_planning(start, end, grid, gap):
-
-    path = Astar_find_path_in_grid(start, end, grid)
-    print('a* path done')
+def SVM_path_planning(robot, MAP, start, end, grid, gap):
+    start_pos = grid[start[0]][start[1]]
+    end_pos = grid[end[0]][end[1]]
+    # last_time = pygame.time.get_ticks()
+    path, robot.distance_to_end = BFS_Astar_V2(grid, robot, start_pos, end_pos)
+    # print('Astar time: ', pygame.time.get_ticks() - last_time)
+    if not path:
+        return robot.svm_clf
     obs1 = []
     obs2 = []
-    search = 4
+    search = 8
 
     for i in range(len(path) - 1):
         x1, y1 = path[i].get_pos()
@@ -1115,7 +1214,7 @@ def SVM_path_planning(start, end, grid, gap):
             if y_delta > 0:
                 flag = False
                 for j in range(1, search):
-                    if grid[x2+ j][y2].is_barrier() or grid[x2+ j][y2].is_dynamic_obs():
+                    if grid[x2+ j][y2].is_barrier() or grid[x2+ j][y2].is_dynamic_obs() or grid[x2+ j][y2].is_future_dynamic_obs():
                         obs1.append((x2+ j, y2))
                         flag = True
                         break
@@ -1123,7 +1222,7 @@ def SVM_path_planning(start, end, grid, gap):
                     obs1.append((x2+ search, y2))
                 flag = False
                 for j in range(1, search):
-                    if grid[x2- j][y2].is_barrier() or grid[x2- j][y2].is_dynamic_obs():
+                    if grid[x2- j][y2].is_barrier() or grid[x2- j][y2].is_dynamic_obs() or grid[x2- j][y2].is_future_dynamic_obs():
                         obs2.append((x2- j, y2))
                         flag = True
                         break
@@ -1132,7 +1231,7 @@ def SVM_path_planning(start, end, grid, gap):
             else:
                 flag = False
                 for j in range(1, search):
-                    if grid[x2+ j][y2].is_barrier() or grid[x2+ j][y2].is_dynamic_obs():
+                    if grid[x2+ j][y2].is_barrier() or grid[x2+ j][y2].is_dynamic_obs() or grid[x2+ j][y2].is_future_dynamic_obs():
                         obs2.append((x2+ j, y2))
                         flag = True
                         break
@@ -1140,7 +1239,7 @@ def SVM_path_planning(start, end, grid, gap):
                     obs2.append((x2+ search, y2))
                 flag = False
                 for j in range(1, search):
-                    if grid[x2- j][y2].is_barrier() or grid[x2- j][y2].is_dynamic_obs():
+                    if grid[x2- j][y2].is_barrier() or grid[x2- j][y2].is_dynamic_obs() or grid[x2- j][y2].is_future_dynamic_obs():
                         obs1.append((x2- j, y2))
                         flag = True
                         break
@@ -1150,7 +1249,7 @@ def SVM_path_planning(start, end, grid, gap):
             if x_delta > 0:
                 flag = False
                 for j in range(1, search):
-                    if grid[x2][y2 - j].is_barrier() or grid[x2][y2 - j].is_dynamic_obs():
+                    if grid[x2][y2 - j].is_barrier() or grid[x2][y2 - j].is_dynamic_obs() or grid[x2][y2 - j].is_future_dynamic_obs():
                         obs1.append((x2, y2 - j))
                         flag = True
                         break
@@ -1158,7 +1257,7 @@ def SVM_path_planning(start, end, grid, gap):
                     obs1.append((x2, y2 - search))
                 flag = False
                 for j in range(1, search):
-                    if grid[x2][y2 + j].is_barrier() or grid[x2][y2 + j].is_dynamic_obs():
+                    if grid[x2][y2 + j].is_barrier() or grid[x2][y2 + j].is_dynamic_obs() or grid[x2][y2 + j].is_future_dynamic_obs():
                         obs2.append((x2, y2 + j))
                         flag = True
                         break
@@ -1167,7 +1266,7 @@ def SVM_path_planning(start, end, grid, gap):
             else:
                 flag = False
                 for j in range(1, search):
-                    if grid[x2][y2 - j].is_barrier() or grid[x2][y2 - j].is_dynamic_obs():
+                    if grid[x2][y2 - j].is_barrier() or grid[x2][y2 - j].is_dynamic_obs() or grid[x2][y2 - j].is_future_dynamic_obs():
                         obs2.append((x2, y2 - j))
                         flag = True
                         break
@@ -1175,7 +1274,7 @@ def SVM_path_planning(start, end, grid, gap):
                     obs2.append((x2, y2 - search))
                 flag = False
                 for j in range(1, search):
-                    if grid[x2][y2 + j].is_barrier() or grid[x2][y2 + j].is_dynamic_obs():
+                    if grid[x2][y2 + j].is_barrier() or grid[x2][y2 + j].is_dynamic_obs() or grid[x2][y2 + j].is_future_dynamic_obs():
                         obs1.append((x2, y2 + j))
                         flag = True
                         break
@@ -1184,7 +1283,7 @@ def SVM_path_planning(start, end, grid, gap):
         elif x_delta > 0 and y_delta > 0:
             flag = False
             for j in range(1, search):
-                if grid[x2 + j - 1][y2 - j].is_barrier() or grid[x2 + j - 1][y2 - j].is_dynamic_obs():
+                if grid[x2 + j - 1][y2 - j].is_barrier() or grid[x2 + j - 1][y2 - j].is_dynamic_obs() or grid[x2 + j - 1][y2 - j].is_future_dynamic_obs():
                     obs1.append((x2 + j - 1, y2 - j))
                     flag = True
                     break
@@ -1192,7 +1291,7 @@ def SVM_path_planning(start, end, grid, gap):
                 obs1.append((x2 + search - 1, y2 - search))
             flag = False
             for j in range(1, search):
-                if grid[x2 - j][y2 + j - 1].is_barrier() or grid[x2 - j][y2 + j - 1].is_dynamic_obs():
+                if grid[x2 - j][y2 + j - 1].is_barrier() or grid[x2 - j][y2 + j - 1].is_dynamic_obs() or grid[x2 - j][y2 + j - 1].is_future_dynamic_obs():
                     obs2.append((x2 - j, y2 + j - 1))
                     flag = True
                     break
@@ -1201,7 +1300,7 @@ def SVM_path_planning(start, end, grid, gap):
         elif x_delta > 0 and y_delta < 0:
             flag = False
             for j in range(1, search):
-                if grid[x2 - j + 1][y2 - j].is_barrier() or grid[x2 - j + 1][y2 - j].is_dynamic_obs():
+                if grid[x2 - j + 1][y2 - j].is_barrier() or grid[x2 - j + 1][y2 - j].is_dynamic_obs() or grid[x2 - j + 1][y2 - j].is_future_dynamic_obs():
                     obs1.append((x2 - j + 1, y2 - j))
                     flag = True
                     break
@@ -1209,7 +1308,7 @@ def SVM_path_planning(start, end, grid, gap):
                 obs1.append((x2 - search + 1, y2 - search))
             flag = False
             for j in range(1, search):
-                if grid[x2 + j][y2 + j - 1].is_barrier() or grid[x2 + j][y2 + j - 1].is_dynamic_obs():
+                if grid[x2 + j][y2 + j - 1].is_barrier() or grid[x2 + j][y2 + j - 1].is_dynamic_obs() or grid[x2 + j][y2 + j - 1].is_future_dynamic_obs():
                     obs2.append((x2 + j, y2 + j - 1))
                     flag = True
                     break
@@ -1218,7 +1317,7 @@ def SVM_path_planning(start, end, grid, gap):
         elif x_delta < 0 and y_delta > 0:
             flag = False
             for j in range(1, search):
-                if grid[x2 + j][y2 + j - 1].is_barrier() or grid[x2 + j][y2 + j - 1].is_dynamic_obs():
+                if grid[x2 + j][y2 + j - 1].is_barrier() or grid[x2 + j][y2 + j - 1].is_dynamic_obs() or grid[x2 + j][y2 + j - 1].is_future_dynamic_obs():
                     obs1.append((x2 + j, y2 + j - 1))
                     flag = True
                     break
@@ -1226,7 +1325,7 @@ def SVM_path_planning(start, end, grid, gap):
                 obs1.append((x2 + search, y2 + search - 1))
             flag = False
             for j in range(1, search):
-                if grid[x2 - j - 1][y2 - j].is_barrier() or grid[x2 - j - 1][y2 - j].is_dynamic_obs():
+                if grid[x2 - j - 1][y2 - j].is_barrier() or grid[x2 - j - 1][y2 - j].is_dynamic_obs() or grid[x2 - j - 1][y2 - j].is_future_dynamic_obs():
                     obs2.append((x2 - j - 1, y2 - j))
                     flag = True
                     break
@@ -1235,7 +1334,7 @@ def SVM_path_planning(start, end, grid, gap):
         elif x_delta < 0 and y_delta < 0:
             flag = False
             for j in range(1, search):
-                if grid[x2 -j + 1][y2 + j].is_barrier() or grid[x2 -j + 1][y2 + j].is_dynamic_obs():
+                if grid[x2 -j + 1][y2 + j].is_barrier() or grid[x2 -j + 1][y2 + j].is_dynamic_obs() or grid[x2 -j + 1][y2 + j].is_future_dynamic_obs():
                     obs1.append((x2 - j + 1, y2 + j))
                     flag = True
                     break
@@ -1243,7 +1342,7 @@ def SVM_path_planning(start, end, grid, gap):
                 obs1.append((x2 - search + 1, y2 + search))
             flag = False
             for j in range(1, search):
-                if grid[x2 + j][y2 - j + 1].is_barrier() or grid[x2 + j][y2 - j + 1].is_dynamic_obs():
+                if grid[x2 + j][y2 - j + 1].is_barrier() or grid[x2 + j][y2 - j + 1].is_dynamic_obs() or grid[x2 + j][y2 - j + 1].is_future_dynamic_obs():
                     obs2.append((x2 + j, y2 - j + 1))
                     flag = True
                     break
@@ -1272,87 +1371,65 @@ def SVM_path_planning(start, end, grid, gap):
         y.append(2)
     clf.fit(X, y)
 
-    # plot the hyperplane
-    # create grid to evaluate model
-    # generate grid along first two dimensions followed by path
-    x_min = min([spot.get_real_pos(gap)[0] for spot in path])
-    x_max = max([spot.get_real_pos(gap)[0] for spot in path])
-    y_min = min([spot.get_real_pos(gap)[1] for spot in path])
-    y_max = max([spot.get_real_pos(gap)[1] for spot in path])
-    xx = np.linspace(x_min, x_max, 200)
-    yy = np.linspace(y_min, y_max, 200)
+    # # plot the hyperplane
+    # # create grid to evaluate model
+    # # generate grid along first two dimensions followed by path
+    # x_min = min([spot.get_real_pos(gap)[0] for spot in path])
+    # x_max = max([spot.get_real_pos(gap)[0] for spot in path])
+    # y_min = min([spot.get_real_pos(gap)[1] for spot in path])
+    # y_max = max([spot.get_real_pos(gap)[1] for spot in path])
+    # xx = np.linspace(x_min, x_max, 200)
+    # yy = np.linspace(y_min, y_max, 200)
     
-    # add start point and end point to xx, yy
-    start_pos = start.get_real_pos(gap)
-    end_pos = end.get_real_pos(gap)
+    # # add start point and end point to xx, yy
+    # end_pos = end_pos.get_real_pos(gap)
 
+    # start_pos = start_pos.get_real_pos(gap)
+    # x_start = start_pos[0] + 20 * math.cos(robot.theta)
+    # y_start = start_pos[1] + 20 * math.sin(robot.theta)
+    # if grid[int(x_start // gap)][int(y_start // gap)].is_barrier():
+    #     x_start = x_start - 20 * math.cos(robot.theta)
+    #     y_start = y_start - 20 * math.sin(robot.theta)
+    # start_pos = (x_start, y_start)
 
-    # YY, XX = np.meshgrid(yy, xx)
-    # xy = np.vstack([XX.ravel(), YY.ravel()]).T
-    # Z = clf.decision_function(xy).reshape(XX.shape)
-    # print('Z: ', Z.shape)
-    
-    # plt.gca().invert_yaxis()
-
-    # plt.contour(XX, YY, Z, colors='k', levels=[-1, 0, 1], alpha=0.5,
-    #         linestyles=['--', '-', '--'])
-    # # plot support vectors
-    # plt.scatter(clf.support_vectors_[:, 0], clf.support_vectors_[:, 1], s=100,
-    #         linewidth=1, facecolors='none', edgecolors='k')
-    # plt.show()
-    # x = []
-    # y = []
-    # for i in range(XX.shape[0]):
-    #     for j in range(XX.shape[1]):
-    #         if abs(Z[i][j]) < 0.01:
-    #             x.append(XX[i][j])
-    #             y.append(YY[i][j])
+    # angle = []
+    # for i in range(0, 120, 10):
+    #     angle.append(i * math.pi / 180)
+    #     angle.append(-i * math.pi / 180)
     # path_svm = []
-
-    # # find nearest start point
-    # xxx = np.where(xx == start_pos[0])
-    # yyy = np.where(yy == start_pos[1])
-    # path_svm.append((xx[xxx[0][0]], yy[yyy[0][0]]))
-    # current = xxx[0][0]
-    # i = current + 1
-    # while(i < len(x)):
-    #     if Utils.distance_real((x[current], y[current]), (x[i], y[i])) < 200:
-    #         path_svm.append((x[i], y[i]))
-    #         current =  i
-
-    angle = []
-    for i in range(0, 120, 10):
-        angle.append(i * math.pi / 180)
-        angle.append(-i * math.pi / 180)
-    print('angle: ', len(angle))
-    path_svm = []
-    path_svm.append(start_pos)
-    theta_current = 0
-    while Utils.distance_real(path_svm[-1], end_pos) > 20:
-        min_heuristic = 10000
-        x_next = None
-        y_next = None
-        theta_next = None
-        for i in range(len(angle)):
-            x_temp = path_svm[-1][0] + gap * math.cos(theta_current + angle[i])
-            y_temp = path_svm[-1][1] + gap * math.sin(theta_current + angle[i])
-            if x_temp >= Constant.WIDTH or x_temp <= 0 or y_temp >= Constant.WIDTH or y_temp <= 0:
-                continue
-            temp_spot = grid[int(x_temp // gap)][int(y_temp // gap)]
-            if not temp_spot.is_barrier():
-                #TODO: change to distance to end point not distance real
-                heuristic = np.abs(clf.decision_function([(x_temp, y_temp)])) + np.log10(Utils.distance_real((x_temp, y_temp), end_pos))
-                if heuristic < min_heuristic :
-                    min_heuristic = heuristic
-                    x_next = x_temp
-                    y_next = y_temp
-                    theta_next = theta_current + angle[i]
-        if x_next == None and y_next == None:
-            print("Can't find path")
-            break
-        path_svm.append((x_next, y_next))
-        theta_current = theta_next
-       
-
-    return path_svm, obs1, obs2
+    # path_svm.append(start_pos)
+    # theta_current = 0
+    # step = gap / 2
+    # while Utils.distance_real(path_svm[-1], end_pos) > 30:
+    #     min_heuristic = 10000
+    #     x_next = None
+    #     y_next = None
+    #     theta_next = None
+    #     for i in range(len(angle)):
+    #         x_temp = path_svm[-1][0] + step  * math.cos(theta_current + angle[i])
+    #         y_temp = path_svm[-1][1] + step  * math.sin(theta_current + angle[i])
+    #         if x_temp >= Constant.WIDTH or x_temp <= 0 or y_temp >= Constant.WIDTH or y_temp <= 0:
+    #             continue
+    #         temp_spot = grid[int(x_temp // gap)][int(y_temp // gap)]
+    #         if not temp_spot.is_barrier():
+    #             #TODO: change to distance to end point not distance real
+    #             # heuristic = np.abs(clf.decision_function([(x_temp, y_temp)])) + np.log2(robot.distance_to_end[temp_spot])
+    #             heuristic = robot.distance_to_end[temp_spot] + np.abs(clf.decision_function([(x_temp, y_temp)]))
+    #             if heuristic < min_heuristic :
+    #                 min_heuristic = heuristic
+    #                 x_next = x_temp
+    #                 y_next = y_temp
+    #                 theta_next = theta_current + angle[i]
+    #     if x_next == None and y_next == None:
+    #         print("Can't find path")
+    #         break
+    #     # pygame.draw.line(MAP.WIN, Constant.BLUE, (int(path_svm[-1][0]), int(path_svm[-1][1])), (int(x_next), int(y_next)), 3)
+    #     # pygame.display.update()
+    #     path_svm.append((x_next, y_next))
+    #     theta_current = theta_next
+    # path_svm.append(end_pos)
+    # return path_svm, obs1, obs2
     # return path_svm
+
+    # print("time to train SVM: ", pygame.time.get_ticks() - last_time)
+    return clf

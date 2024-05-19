@@ -27,7 +27,10 @@ class Constant:
     DYNOBSTACLEFILE = "C:/Users/admin/LearningIT/20222/Project2/MRPP/currentProject/dynamicObstacles.txt"
     COLLISIONFILE = "C:/Users/admin/LearningIT/20222/Project2/MRPP/currentProject/log_collison.txt"
     INFO_PATH_FILE = "C:/Users/admin/LearningIT/20222/Project2/MRPP/currentProject/log_info_path.csv"
+    OUTPUT_TEST_FILE = "C:/Users/admin/LearningIT/20222/Project2/MRPP/currentProject/output_test.txt"
 
+    NEIGHBOR_OF_SEARCH_IN_PATH_FOR_BFS = 8
+    LEN_POS_TO_UPDATE_NEIGHBOR = 8
     OBSTACLE_DETECTION_DISTANCE = 100
     OBSTACLE_REPLANNING_DISTANCE = 150
     MIN_APROXIMATE_ANGLE = 0.1
